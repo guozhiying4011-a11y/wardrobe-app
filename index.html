@@ -242,6 +242,16 @@ button{cursor:pointer;border:none;background:none}
 .inspire-filter-label{font-size:12px;font-weight:600;color:var(--text-mid);padding:6px 20px 0;display:flex;align-items:center;gap:6px}
 .inspire-filter-label .filter-hint{font-size:10px;font-weight:400;color:var(--text-light)}
 .inspire-chips .chip.active{background:var(--orange);color:#fff}
+/* 灵感页场景栏(通勤/外出) */
+.inspire-scene-bar{display:flex;gap:8px;padding:8px 20px}
+.inspire-scene-bar .scene-btn{flex:1;padding:9px 12px;border-radius:var(--radius-sm);background:var(--card);color:var(--text-mid);font-size:13px;font-weight:600;box-shadow:var(--shadow);transition:all .2s;text-align:center}
+.inspire-scene-bar .scene-btn.active{background:var(--brown-deep);color:var(--cream)}
+/* 可折叠筛选 */
+.inspire-filter-collapse{padding:0 20px 4px}
+.filter-toggle{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;background:var(--cream);border-radius:var(--radius-xs);font-size:12px;font-weight:600;color:var(--text-mid);cursor:pointer}
+.filter-toggle .toggle-arrow{font-size:11px;font-weight:500;color:var(--caramel)}
+.filter-collapse-body{display:none;padding-top:8px}
+.filter-collapse-body.open{display:block}
 .masonry{columns:2;column-gap:10px;padding:8px 20px}
 .masonry-item{break-inside:avoid;margin-bottom:10px;background:var(--card);border-radius:var(--radius-sm);overflow:hidden;box-shadow:var(--shadow);position:relative}
 .masonry-item .mimg{width:100%;display:block;background:var(--cream)}
@@ -327,11 +337,18 @@ button{cursor:pointer;border:none;background:none}
     <button class="btn btn-cream btn-sm" onclick="openInspireUrlModal()">从链接添加</button>
     <input type="file" id="inspireUpload" accept="image/*" style="display:none" onchange="handleInspireUpload(event)">
   </div>
-  <div class="inspire-filter-wrap">
-    <div class="inspire-filter-label">按类别</div>
-    <div class="inspire-chips" id="inspireTypeChips"></div>
-    <div class="inspire-filter-label">按季节 <span class="filter-hint">可多选叠加</span></div>
-    <div class="inspire-chips" id="inspireSeasonChips"></div>
+  <div class="inspire-scene-bar" id="inspireSceneBar"></div>
+  <div class="inspire-filter-collapse">
+    <div class="filter-toggle" onclick="toggleInspireFilter()">
+      <span>更多筛选(类别/季节)</span>
+      <span class="toggle-arrow" id="filterToggleArrow">展开</span>
+    </div>
+    <div class="filter-collapse-body" id="filterCollapseBody">
+      <div class="inspire-filter-label">按类别 <span class="filter-hint">可多选</span></div>
+      <div class="inspire-chips" id="inspireTypeChips"></div>
+      <div class="inspire-filter-label">按季节 <span class="filter-hint">可多选叠加</span></div>
+      <div class="inspire-chips" id="inspireSeasonChips"></div>
+    </div>
   </div>
   <div class="masonry" id="inspireGrid"></div>
 </div>
@@ -456,7 +473,7 @@ button{cursor:pointer;border:none;background:none}
     <div class="form-group"><label class="form-label">来源(可选)</label><input type="text" class="form-input" id="inspireSource" placeholder="如:淘宝、小红书、Pinterest" maxlength="20"><div id="inspireSourceTags" class="source-tags" style="margin-top:6px"></div></div>
     <div class="form-group"><label class="form-label">衣物类别</label><div class="chip-group" id="inspireTypePicker"></div></div>
     <div class="form-group"><label class="form-label">季节</label><div class="chip-group" id="inspireSeasonPicker"></div></div>
-    <div class="form-group"><label class="form-label">分类标签</label><div class="chip-group" id="inspireCatPicker"></div></div>
+    <div class="form-group"><label class="form-label">分类标签(通勤/外出)</label><div class="chip-group" id="inspireCatPicker"></div></div>
     <div class="form-group"><label class="form-label">备注</label><textarea class="form-textarea" id="inspireNote" placeholder="喜欢这套搭配的哪个点?" maxlength="100"></textarea></div>
     <div class="form-actions"><button class="btn btn-cream" onclick="closeModal('inspireModal')">取消</button><button class="btn btn-primary" onclick="saveInspire()">保存</button></div>
   </div>
@@ -494,7 +511,7 @@ const CATEGORIES=['上衣','裤子','裙子','外套','鞋','配饰'];
 const STYLES=['通勤','休闲','极简','法式','温柔','酷飒','韩系','复古','运动'];
 const SEASONS=['春','夏','秋','冬'];
 const SEASON_EMOJI={春:'🌸',夏:'☀️',秋:'🍂',冬:'❄️'};
-const INSPIRE_CATS=['日常通勤','约会穿搭','度假风','运动休闲','韩系穿搭','法式优雅','街头酷飒','温柔甜美','其他'];
+const INSPIRE_CATS=['通勤','外出'];
 const INSPIRE_TYPES=['上衣','裤子','裙子','外套','套装','其他'];
 
 let clothes=DB.get(DB.CLOTHES,[]);
@@ -505,6 +522,7 @@ let savedSources=DB.get(DB.SOURCES,[]);
 let currentCategory='';
 let currentInspireTypes=[];
 let currentInspireSeasons=[];
+let currentInspireScene='all';
 let currentOutfitFilter='all';
 let homeOutfitFilter='all';
 let outfitBuilder={};
@@ -978,6 +996,21 @@ function deleteRecord(){
 }
 
 /* 灵感页 */
+function toggleInspireFilter(){
+  const body=$('filterCollapseBody');
+  const arrow=$('filterToggleArrow');
+  const open=body.classList.toggle('open');
+  arrow.textContent=open?'收起':'展开';
+}
+function renderInspireSceneBar(){
+  const tongqinCount=inspires.filter(i=>(i.cats||[]).includes('通勤')).length;
+  const waichuCount=inspires.filter(i=>(i.cats||[]).includes('外出')).length;
+  $('inspireSceneBar').innerHTML=
+    '<div class="scene-btn '+(currentInspireScene==='all'?'active':'')+'" onclick="setInspireScene(\'all\')">全部 <span style="font-size:11px;opacity:.8">'+inspires.length+'</span></div>'+
+    '<div class="scene-btn '+(currentInspireScene==='通勤'?'active':'')+'" onclick="setInspireScene(\'通勤\')">通勤 <span style="font-size:11px;opacity:.8">'+tongqinCount+'</span></div>'+
+    '<div class="scene-btn '+(currentInspireScene==='外出'?'active':'')+'" onclick="setInspireScene(\'外出\')">外出 <span style="font-size:11px;opacity:.8">'+waichuCount+'</span></div>';
+}
+function setInspireScene(s){currentInspireScene=s;renderInspire()}
 function renderInspireTypeChips(){
   let html='<div class="chip '+(currentInspireTypes.length===0?'active':'')+'" onclick="clearInspireTypes()">全部</div>';
   html+=INSPIRE_TYPES.map(c=>'<div class="chip '+(currentInspireTypes.includes(c)?'active':'')+'" onclick="toggleInspireType(\''+c+'\')">'+c+'</div>').join('');
@@ -1001,10 +1034,14 @@ function toggleInspireSeason(s){
 function clearInspireTypes(){currentInspireTypes=[];renderInspire()}
 function clearInspireSeasons(){currentInspireSeasons=[];renderInspire()}
 function renderInspire(){
+  renderInspireSceneBar();
   renderInspireTypeChips();
   renderInspireSeasonChips();
   const grid=$('inspireGrid');
   let filtered=inspires;
+  if(currentInspireScene!=='all'){
+    filtered=filtered.filter(i=>(i.cats||[]).includes(currentInspireScene));
+  }
   if(currentInspireTypes.length>0){
     filtered=filtered.filter(i=>(i.types||[]).some(t=>currentInspireTypes.includes(t)));
   }
@@ -1017,9 +1054,9 @@ function renderInspire(){
   }
   grid.innerHTML=filtered.map(i=>{
     let tags='';
+    (i.cats||[]).forEach(c=>{tags+='<span class="mcat">'+c+'</span>'});
     (i.types||[]).forEach(t=>{tags+='<span class="mcat">'+t+'</span>'});
     (i.seasons||[]).forEach(s=>{tags+='<span class="mcat">'+(SEASON_EMOJI[s]||'')+s+'</span>'});
-    (i.cats||[]).forEach(c=>{tags+='<span class="mcat">'+c+'</span>'});
     return '<div class="masonry-item" onclick="openInspireDetail(\''+i.id+'\')">'+
       (i.image?'<div class="mimg"><img src="'+i.image+'"></div>':'')+
       '<div class="mdel" onclick="event.stopPropagation();deleteInspire(\''+i.id+'\')">&times;</div>'+
