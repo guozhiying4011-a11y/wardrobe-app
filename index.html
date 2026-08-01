@@ -661,32 +661,42 @@ function renderClothes(){
 }
 
 function openClothingModal(id){
-  $('clothingModalTitle').textContent=id?'编辑衣物':'添加衣物';
-  $('clothingId').value=id||'';
-  $('clothingName').value='';$('clothingBrand').value='';$('clothingNote').value='';
-  $('clothingPrice').value='';
-  $('photoUpload').innerHTML='<div class="ph-text"><svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg><p>点击上传衣物照片</p></div>';
-  $('photoUpload').dataset.image='';
-  document.querySelectorAll('#categoryPicker .chip-opt').forEach(o=>o.classList.remove('selected'));
-  document.querySelectorAll('#stylePicker .chip-opt').forEach(o=>o.classList.remove('selected'));
-  document.querySelectorAll('#colorPicker .color-opt').forEach(o=>o.classList.remove('selected'));
-  document.querySelectorAll('#seasonPicker .chip-opt').forEach(o=>o.classList.remove('selected'));
-  setRating(0);
-  if(id){
-    const c=getClothing(id);if(!c)return;
-    $('clothingName').value=c.name;$('clothingBrand').value=c.brand||'';
-    $('clothingNote').value=c.note||'';$('clothingPrice').value=c.price||'';
-    $('clothingBuyDate').value=c.buyDate||'';
-    if(c.image){$('photoUpload').innerHTML='<img src="'+c.image+'">';$('photoUpload').dataset.image=c.image}
-    const ce=document.querySelector('#categoryPicker [data-val="'+c.category+'"]');if(ce)ce.classList.add('selected');
-    const cole=document.querySelector('#colorPicker [data-n="'+c.color+'"]');if(cole)cole.classList.add('selected');
-    (c.style||[]).forEach(s=>{const e=document.querySelector('#stylePicker [data-val="'+s+'"]');if(e)e.classList.add('selected')});
-    (c.season||[]).forEach(s=>{const e=document.querySelector('#seasonPicker [data-val="'+s+'"]');if(e)e.classList.add('selected')});
-    setRating(c.rating||0);
-  }else{
-    $('clothingBuyDate').value=DB.get(DB.LAST_BUY_DATE,'')||'';
+  try{
+    $('clothingModalTitle').textContent=id?'编辑衣物':'添加衣物';
+    $('clothingId').value=id||'';
+    $('clothingName').value='';$('clothingBrand').value='';$('clothingNote').value='';
+    $('clothingPrice').value='';
+    if($('photoUpload')){
+      $('photoUpload').innerHTML='<div class="ph-text"><svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg><p>点击上传衣物照片</p></div>';
+      $('photoUpload').dataset.image='';
+    }
+    document.querySelectorAll('#categoryPicker .chip-opt').forEach(o=>o.classList.remove('selected'));
+    document.querySelectorAll('#stylePicker .chip-opt').forEach(o=>o.classList.remove('selected'));
+    document.querySelectorAll('#colorPicker .color-opt').forEach(o=>o.classList.remove('selected'));
+    document.querySelectorAll('#seasonPicker .chip-opt').forEach(o=>o.classList.remove('selected'));
+    setRating(0);
+    if(id){
+      const c=getClothing(id);if(!c)return;
+      $('clothingName').value=c.name||'';$('clothingBrand').value=c.brand||'';
+      $('clothingNote').value=c.note||'';$('clothingPrice').value=c.price||'';
+      $('clothingBuyDate').value=c.buyDate||'';
+      if(c.image&&$('photoUpload')){$('photoUpload').innerHTML='<img src="'+c.image+'">';$('photoUpload').dataset.image=c.image}
+      const ce=document.querySelector('#categoryPicker [data-val="'+c.category+'"]');if(ce)ce.classList.add('selected');
+      const cole=document.querySelector('#colorPicker [data-n="'+c.color+'"]');if(cole)cole.classList.add('selected');
+      (c.style||[]).forEach(s=>{const e=document.querySelector('#stylePicker [data-val="'+s+'"]');if(e)e.classList.add('selected')});
+      (c.season||[]).forEach(s=>{const e=document.querySelector('#seasonPicker [data-val="'+s+'"]');if(e)e.classList.add('selected')});
+      setRating(c.rating||0);
+    }else{
+      try{
+        const lastDate=DB.get(DB.LAST_BUY_DATE,'');
+        $('clothingBuyDate').value=lastDate&&typeof lastDate==='string'?lastDate:'';
+      }catch(_){$('clothingBuyDate').value=''}
+    }
+    openModal('clothingModal');
+  }catch(e){
+    console.error('openClothingModal error:',e);
+    toast('打开失败:'+(e.message||e));
   }
-  openModal('clothingModal');
 }
 function editClothing(id){openClothingModal(id)}
 function handlePhotoUpload(e){
@@ -708,20 +718,32 @@ function handlePhotoUpload(e){
   reader.readAsDataURL(file);
 }
 function saveClothing(){
-  const name=$('clothingName').value.trim();
-  if(!name){toast('请输入衣物名称');return}
-  const catEl=document.querySelector('#categoryPicker .chip-opt.selected');
-  if(!catEl){toast('请选择类别');return}
-  const colEl=document.querySelector('#colorPicker .color-opt.selected');
-  const styles=[...document.querySelectorAll('#stylePicker .chip-opt.selected')].map(o=>o.dataset.val);
-  const seasons=[...document.querySelectorAll('#seasonPicker .chip-opt.selected')].map(o=>o.dataset.val);
-  const id=$('clothingId').value;
-  const data={id:id||uid(),name,category:catEl.dataset.val,color:colEl?colEl.dataset.n:'',style:styles,season:seasons,brand:$('clothingBrand').value.trim(),price:$('clothingPrice').value?parseFloat($('clothingPrice').value):0,buyDate:$('clothingBuyDate').value,note:$('clothingNote').value.trim(),rating:currentRating,image:$('photoUpload').dataset.image||'',createdAt:id?(getClothing(id)&&getClothing(id).createdAt||Date.now()):Date.now()};
-  if(id){const idx=clothes.findIndex(c=>c.id===id);if(idx>=0)clothes[idx]=data}
-  else{clothes.push(data);if(data.buyDate)DB.set(DB.LAST_BUY_DATE,data.buyDate)}
-  DB.set(DB.CLOTHES,clothes);
-  closeModal('clothingModal');renderClothes();
-  toast(id?'已更新':'已添加');
+  try{
+    const name=$('clothingName').value.trim();
+    if(!name){toast('请输入衣物名称');return}
+    const catEl=document.querySelector('#categoryPicker .chip-opt.selected');
+    if(!catEl){toast('请选择类别');return}
+    const colEl=document.querySelector('#colorPicker .color-opt.selected');
+    const styles=[...document.querySelectorAll('#stylePicker .chip-opt.selected')].map(o=>o.dataset.val);
+    const seasons=[...document.querySelectorAll('#seasonPicker .chip-opt.selected')].map(o=>o.dataset.val);
+    const id=$('clothingId').value;
+    const brand=$('clothingBrand')?$('clothingBrand').value.trim():'';
+    const priceVal=$('clothingPrice')?$('clothingPrice').value:'';
+    const price=(priceVal&&!isNaN(parseFloat(priceVal)))?parseFloat(priceVal):0;
+    const buyDate=$('clothingBuyDate')?$('clothingBuyDate').value:'';
+    const note=$('clothingNote')?$('clothingNote').value.trim():'';
+    const img=$('photoUpload')?($('photoUpload').dataset.image||''):'';
+    const createdAt=id?(getClothing(id)&&getClothing(id).createdAt||Date.now()):Date.now();
+    const data={id:id||uid(),name,category:catEl.dataset.val,color:colEl?colEl.dataset.n:'',style:styles,season:seasons,brand,price,buyDate,note,rating:currentRating||0,image:img,createdAt};
+    if(id){const idx=clothes.findIndex(c=>c.id===id);if(idx>=0)clothes[idx]=data}
+    else{clothes.push(data);if(data.buyDate)DB.set(DB.LAST_BUY_DATE,data.buyDate)}
+    DB.set(DB.CLOTHES,clothes);
+    closeModal('clothingModal');renderClothes();
+    toast(id?'已更新':'已添加');
+  }catch(e){
+    console.error('saveClothing error:',e);
+    toast('保存失败:'+(e.message||e));
+  }
 }
 
 /* 搭配管理 */
