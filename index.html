@@ -511,7 +511,7 @@ button{cursor:pointer;border:none;background:none}
 <div class="toast" id="toast"></div>
 
 <script>
-const DB={CLOTHES:'wc_clothes',OUTFITS:'wc_outfits',RECORDS:'wc_records',INSPIRES:'wc_inspires',SOURCES:'wc_sources',
+const DB={CLOTHES:'wc_clothes',OUTFITS:'wc_outfits',RECORDS:'wc_records',INSPIRES:'wc_inspires',SOURCES:'wc_sources',LAST_BUY_DATE:'wc_last_buy_date',
   get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
   set(k,v){localStorage.setItem(k,JSON.stringify(v))}};
 
@@ -664,7 +664,7 @@ function openClothingModal(id){
   $('clothingModalTitle').textContent=id?'编辑衣物':'添加衣物';
   $('clothingId').value=id||'';
   $('clothingName').value='';$('clothingBrand').value='';$('clothingNote').value='';
-  $('clothingPrice').value='';$('clothingBuyDate').value='';
+  $('clothingPrice').value='';
   $('photoUpload').innerHTML='<div class="ph-text"><svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg><p>点击上传衣物照片</p></div>';
   $('photoUpload').dataset.image='';
   document.querySelectorAll('#categoryPicker .chip-opt').forEach(o=>o.classList.remove('selected'));
@@ -683,6 +683,8 @@ function openClothingModal(id){
     (c.style||[]).forEach(s=>{const e=document.querySelector('#stylePicker [data-val="'+s+'"]');if(e)e.classList.add('selected')});
     (c.season||[]).forEach(s=>{const e=document.querySelector('#seasonPicker [data-val="'+s+'"]');if(e)e.classList.add('selected')});
     setRating(c.rating||0);
+  }else{
+    $('clothingBuyDate').value=DB.get(DB.LAST_BUY_DATE,'')||'';
   }
   openModal('clothingModal');
 }
@@ -716,7 +718,7 @@ function saveClothing(){
   const id=$('clothingId').value;
   const data={id:id||uid(),name,category:catEl.dataset.val,color:colEl?colEl.dataset.n:'',style:styles,season:seasons,brand:$('clothingBrand').value.trim(),price:$('clothingPrice').value?parseFloat($('clothingPrice').value):0,buyDate:$('clothingBuyDate').value,note:$('clothingNote').value.trim(),rating:currentRating,image:$('photoUpload').dataset.image||'',createdAt:id?(getClothing(id)&&getClothing(id).createdAt||Date.now()):Date.now()};
   if(id){const idx=clothes.findIndex(c=>c.id===id);if(idx>=0)clothes[idx]=data}
-  else clothes.push(data);
+  else{clothes.push(data);if(data.buyDate)DB.set(DB.LAST_BUY_DATE,data.buyDate)}
   DB.set(DB.CLOTHES,clothes);
   closeModal('clothingModal');renderClothes();
   toast(id?'已更新':'已添加');
