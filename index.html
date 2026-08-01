@@ -511,9 +511,149 @@ button{cursor:pointer;border:none;background:none}
 <div class="toast" id="toast"></div>
 
 <script>
-const DB={CLOTHES:'wc_clothes',OUTFITS:'wc_outfits',RECORDS:'wc_records',INSPIRES:'wc_inspires',SOURCES:'wc_sources',LAST_BUY_DATE:'wc_last_buy_date',
-  get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
-  set(k,v){localStorage.setItem(k,JSON.stringify(v))}};
+/* IndexedDB 封装 - 解决 localStorage 5MB 配额限制 */
+const IDB_NAME='wardrobe_app';
+const IDB_STORE='data';
+let idb=null;
+let idbReady=false;
+const idbPending=[];
+
+function initIDB(){
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open(IDB_NAME,999);
+    req.onupgradene=e=>{
+      try{
+        const db=e.target.result;
+        if(!db.objectStoreNames.contains(IDB_STORE)){
+          db.createObjectStore(IDB_STORE,{keyPath:'key'});
+        }
+      }catch(err){console.error('onupgradene err:',err)}
+    };
+    req.onsuccess=e=>{
+      idb=e.target.result;
+      idbReady=true;
+      try{
+        const stores=[...idb.objectStoreNames];
+        if(!stores.includes(IDB_STORE)){
+          console.warn('data store missing, recreating...');
+          try{idb.close()}catch(_){}
+          const req2=indexedDB.open(IDB_NAME,1000);
+          req2.onupgradene=ev=>{ev.target.result.createObjectStore(IDB_STORE,{keyPath:'key'})};
+          req2.onsuccess=ev=>{
+            idb=ev.target.result;
+            idbPending.forEach(fn=>fn());
+            resolve(idb);
+          };
+          req2.onerror=ev=>reject(ev.target.error);
+        }else{
+          idbPending.forEach(fn=>fn());
+          resolve(idb);
+        }
+      }catch(err){reject(err)}
+    };
+    req.onerror=e=>reject(e.target.error);
+  });
+}
+
+function idbGet(k){
+  return new Promise((resolve,reject)=>{
+    if(!idb){idbPending.push(()=>idbGet(k).then(resolve,reject));return}
+    const tx=idb.transaction(IDB_STORE,'readonly');
+    const req=tx.objectStore(IDB_STORE).get(k);
+    req.onsuccess=()=>resolve(req.result?req.result.value:null);
+    req.onerror=()=>reject(req.error);
+  });
+}
+
+function idbSet(k,v){
+  return new Promise((resolve,reject)=>{
+    if(!idb){idbPending.push(()=>idbSet(k,v).then(resolve,reject));return}
+    const tx=idb.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).put({key:k,value:v});
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>reject(tx.error);
+  });
+}
+
+function idbDelete(k){
+  return new Promise((resolve,reject)=>{
+    if(!idb){idbPending.push(()=>idbDelete(k).then(resolve,reject));return}
+    const tx=idb.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).delete(k);
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>reject(tx.error);
+  });
+}
+
+/* 带内存缓存的存储层 - 同步读 + 异步写，解决配额问题 */
+const _cache={};
+const _lsBad={};
+const DB_KEYS=['wc_clothes','wc_outfits','wc_records','wc_inspires','wc_sources','wc_last_buy_date'];
+
+const DB={
+  CLOTHES:'wc_clothes',OUTFITS:'wc_outfits',RECORDS:'wc_records',
+  INSPIRES:'wc_inspires',SOURCES:'wc_sources',LAST_BUY_DATE:'wc_last_buy_date',
+  get(k,d){
+    if(k in _cache)return _cache[k];
+    try{
+      const raw=localStorage.getItem(k);
+      if(raw!==null){const v=JSON.parse(raw);_cache[k]=v;return v}
+    }catch(e){}
+    return d;
+  },
+  set(k,v){
+    _cache[k]=v;
+    let lsOk=true;
+    try{
+      /* 一旦 localStorage 触发过配额异常，对该 key 永久跳过 */
+      if(_lsBad[k]){
+        lsOk=false;
+      }else{
+        localStorage.setItem(k,JSON.stringify(v));
+      }
+    }catch(e){
+      lsOk=false;
+      _lsBad[k]=true;
+      try{localStorage.removeItem(k)}catch(_){}
+    }
+    /* 同步写 IndexedDB 兜底（不抛出，绝不影响流程） */
+    try{
+      if(typeof idbSet==='function'){
+        idbSet(k,v).catch(()=>{});
+      }
+    }catch(_){}
+    return lsOk;
+  },
+  delete(k){
+    delete _cache[k];
+    try{localStorage.removeItem(k)}catch(_){}
+    try{idbDelete(k).catch(()=>{})}catch(_){}
+  }
+};
+
+/* 启动时从 IndexedDB 迁移数据到内存缓存，并用 IndexedDB 兜底 */
+async function loadFromIDB(){
+  for(const k of DB_KEYS){
+    try{
+      const v=await idbGet(k);
+      if(v!==null && v!==undefined){_cache[k]=v}
+    }catch(e){}
+  }
+}
+
+/* 用 IndexedDB 全量备份 localStorage 数据 */
+async function backupAllToIDB(){
+  for(const k of DB_KEYS){
+    if(k in _cache){
+      await idbSet(k,_cache[k]).catch(()=>{});
+    }else{
+      try{
+        const raw=localStorage.getItem(k);
+        if(raw!==null){const v=JSON.parse(raw);_cache[k]=v;await idbSet(k,v).catch(()=>{})}
+      }catch(e){}
+    }
+  }
+}
 
 const COLORS=[{n:'黑色',h:'#1a1a1a'},{n:'白色',h:'#ffffff'},{n:'灰色',h:'#9ca3af'},{n:'红色',h:'#ef4444'},{n:'橙色',h:'#f97316'},{n:'黄色',h:'#eab308'},{n:'绿色',h:'#22c55e'},{n:'蓝色',h:'#3b82f6'},{n:'紫色',h:'#a855f7'},{n:'粉色',h:'#ec4899'},{n:'棕色',h:'#92400e'},{n:'米色',h:'#d4b896'},{n:'藏青',h:'#1e3a5f'},{n:'卡其',h:'#a88B5A'}];
 const CATEGORIES=['上衣','裤子','裙子','外套','鞋','配饰'];
@@ -737,12 +877,20 @@ function saveClothing(){
     const data={id:id||uid(),name,category:catEl.dataset.val,color:colEl?colEl.dataset.n:'',style:styles,season:seasons,brand,price,buyDate,note,rating:currentRating||0,image:img,createdAt};
     if(id){const idx=clothes.findIndex(c=>c.id===id);if(idx>=0)clothes[idx]=data}
     else{clothes.push(data);if(data.buyDate)DB.set(DB.LAST_BUY_DATE,data.buyDate)}
-    DB.set(DB.CLOTHES,clothes);
+    const ok=DB.set(DB.CLOTHES,clothes);
     closeModal('clothingModal');renderClothes();
-    toast(id?'已更新':'已添加');
+    if(ok){toast(id?'已更新':'已添加')}
+    else{toast(id?'已更新':'已添加（本地已满，存入 IndexedDB）')}
   }catch(e){
     console.error('saveClothing error:',e);
-    toast('保存失败:'+(e.message||e));
+    try{closeModal('clothingModal')}catch(_){}
+    try{renderClothes()}catch(_){}
+    const msg=(e.message||String(e));
+    if(msg.includes('quota')||msg.includes('exceeded')||msg.includes('Quota')){
+      toast('本地存储空间已满，已自动切换到 IndexedDB，请重试');
+    }else{
+      toast('保存失败:'+msg);
+    }
   }
 }
 
@@ -1528,7 +1676,17 @@ function clearAllData(){
   toast('已清空');
 }
 
-function init(){
+async function init(){
+  try{
+    await initIDB();
+    await loadFromIDB();
+    clothes=DB.get(DB.CLOTHES,[]);
+    outfits=DB.get(DB.OUTFITS,[]);
+    records=DB.get(DB.RECORDS,[]);
+    inspires=DB.get(DB.INSPIRES,[]);
+    savedSources=DB.get(DB.SOURCES,[]);
+  }catch(e){console.warn('IDB load failed, using localStorage:',e)}
+  try{backupAllToIDB()}catch(e){}
   initPickers();
   renderHome();
   $('searchInput').addEventListener('input',renderClothes);
