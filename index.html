@@ -1429,6 +1429,8 @@ function renderInspire(){
   if(currentInspireSeasons.length>0){
     filtered=filtered.filter(i=>(i.seasons||[]).some(s=>currentInspireSeasons.includes(s)));
   }
+  /* 按添加时间倒序（最新在前） */
+  filtered=filtered.slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   if(filtered.length===0){
     grid.innerHTML='<div class="empty" style="column-span:all"><svg width="56" height="56" viewBox="0 0 24 24" fill="var(--text-light)"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg><p>'+(inspires.length===0?'还没有收藏灵感':'没有符合条件的灵感')+'</p><p class="hint">'+(inspires.length===0?'上传图片或从链接添加':'试试调整筛选条件')+'</p></div>';
     return;
