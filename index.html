@@ -496,6 +496,7 @@ button{cursor:pointer;border:none;background:none}
   <div class="modal">
     <div class="modal-header"><h2>灵感详情</h2><div class="modal-close" onclick="closeModal('inspireDetailModal')">&times;</div></div>
     <div id="inspireDetailContent"></div>
+    <div class="form-actions" id="inspireDetailActions"><button class="btn btn-primary" id="inspireEditBtn" onclick="">编辑</button></div>
   </div>
 </div>
 
@@ -1136,10 +1137,44 @@ function saveInspire(){
   const source=$('inspireSource').value.trim();
   const note=$('inspireNote').value.trim();
   if(source)addSourceTag(source);
-  inspires.push({id:uid(),image,source,note,cats,types,seasons,createdAt:Date.now()});
-  DB.set(DB.INSPIRES,inspires);
-  closeModal('inspireModal');renderInspire();
-  toast('灵感已收藏');
+  const editId=$('inspireId').value;
+  if(editId){
+    const idx=inspires.findIndex(i=>i.id===editId);
+    if(idx>=0){
+      const old=inspires[idx];
+      inspires[idx]={...old,image,source,note,cats,types,seasons};
+      DB.set(DB.INSPIRES,inspires);
+      closeModal('inspireModal');renderInspire();
+      toast('灵感已更新');
+    }
+  }else{
+    inspires.push({id:uid(),image,source,note,cats,types,seasons,createdAt:Date.now()});
+    DB.set(DB.INSPIRES,inspires);
+    closeModal('inspireModal');renderInspire();
+    toast('灵感已收藏');
+  }
+}
+function editInspire(id){
+  const i=inspires.find(x=>x.id===id);if(!i)return;
+  closeModal('inspireDetailModal');
+  $('inspireId').value=i.id;
+  $('inspireSource').value=i.source||'';
+  $('inspireNote').value=i.note||'';
+  document.querySelectorAll('#inspireCatPicker .chip-opt').forEach(o=>o.classList.remove('selected'));
+  document.querySelectorAll('#inspireTypePicker .chip-opt').forEach(o=>o.classList.remove('selected'));
+  document.querySelectorAll('#inspireSeasonPicker .chip-opt').forEach(o=>o.classList.remove('selected'));
+  (i.cats||[]).forEach(c=>{const e=document.querySelector('#inspireCatPicker [data-val="'+c+'"]');if(e)e.classList.add('selected')});
+  (i.types||[]).forEach(t=>{const e=document.querySelector('#inspireTypePicker [data-val="'+t+'"]');if(e)e.classList.add('selected')});
+  (i.seasons||[]).forEach(s=>{const e=document.querySelector('#inspireSeasonPicker [data-val="'+s+'"]');if(e)e.classList.add('selected')});
+  if(i.image){
+    $('inspirePhoto').innerHTML='<img src="'+i.image+'">';
+    $('inspirePhoto').dataset.image=i.image;
+  }else{
+    $('inspirePhoto').innerHTML='';
+    $('inspirePhoto').dataset.image='';
+  }
+  renderSourceTags();
+  openModal('inspireModal');
 }
 function deleteInspire(id){
   if(!confirm('删除这条灵感?'))return;
@@ -1159,6 +1194,7 @@ function openInspireDetail(id){
     (tagsHtml?'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+tagsHtml+'</div>':'')+
     (i.note?'<div style="font-size:14px;color:var(--text-dark);line-height:1.6">'+escapeHtml(i.note)+'</div>':'')+
     '<div style="font-size:11px;color:var(--text-light);margin-top:12px">收藏于 '+new Date(i.createdAt).toLocaleDateString('zh-CN')+'</div>';
+  $('inspireEditBtn').onclick=function(){editInspire(id)};
   openModal('inspireDetailModal');
 }
 function openInspireUrlModal(){
