@@ -105,6 +105,8 @@ button{cursor:pointer;border:none;background:none}
 .clothing-card .photo img{width:100%;height:100%;object-fit:cover;display:block}
 .clothing-card .photo .ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
 .clothing-card .badge{position:absolute;top:8px;left:8px;background:rgba(53,46,42,0.7);color:#fff;font-size:10px;padding:3px 8px;border-radius:20px;backdrop-filter:blur(4px)}
+.clothing-card .badge-seasons{position:absolute;bottom:8px;left:8px;display:flex;gap:3px;flex-wrap:wrap}
+.clothing-card .badge-season{font-size:9px;padding:2px 6px;border-radius:20px;background:rgba(255,255,255,0.85);color:var(--text-dark);backdrop-filter:blur(4px)}
 .clothing-card .info{padding:10px}
 .clothing-card .name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .clothing-card .meta{display:flex;align-items:center;gap:6px;margin-top:4px}
@@ -125,27 +127,29 @@ button{cursor:pointer;border:none;background:none}
 .outfit-filter-btn.active{background:var(--brown-deep);color:var(--cream)}
 .outfit-filter-btn .cnt{font-size:11px;font-weight:500;opacity:.8;margin-left:4px}
 
-/* 搭配卡片 - 2列网格,上衣在上 下装在下 */
-.outfit-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:0 20px}
-.outfit-card-v{background:var(--card);border-radius:var(--radius-sm);overflow:hidden;box-shadow:var(--shadow);position:relative}
+/* 搭配卡片 - 3列网格,上衣在上 下装在下 */
+.outfit-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:0 12px}
+.outfit-card-v{background:var(--card);border-radius:var(--radius-xs);overflow:hidden;box-shadow:var(--shadow);position:relative}
 .outfit-card-v .ocv-body{display:flex;flex-direction:column}
 .outfit-card-v .ocv-top,.outfit-card-v .ocv-bottom{position:relative}
-.outfit-card-v .ocv-img{width:100%;aspect-ratio:1/1;background:var(--cream);overflow:hidden;position:relative}
+.outfit-card-v .ocv-img{width:100%;aspect-ratio:3/4;background:var(--cream);overflow:hidden;position:relative}
 .outfit-card-v .ocv-img img{width:100%;height:100%;object-fit:cover}
-.outfit-card-v .ocv-label{position:absolute;top:4px;left:4px;background:rgba(53,46,42,0.7);color:#fff;font-size:9px;padding:2px 6px;border-radius:20px}
+.outfit-card-v .ocv-label{position:absolute;top:3px;left:3px;background:rgba(53,46,42,0.7);color:#fff;font-size:8px;padding:1px 5px;border-radius:20px}
 .outfit-card-v .ocv-divider{height:2px;background:var(--cream)}
 /* 外套叠放 */
-.outfit-card-v .ocv-outer{display:flex;gap:4px;overflow-x:auto;padding:4px;background:var(--cream-light);border-top:1px solid var(--cream)}
+.outfit-card-v .ocv-outer{display:flex;gap:3px;overflow-x:auto;padding:3px;background:var(--cream-light);border-top:1px solid var(--cream)}
 .outfit-card-v .ocv-outer::-webkit-scrollbar{display:none}
-.outfit-card-v .ocv-outer-item{flex:0 0 36px}
-.outfit-card-v .ocv-outer-item .oi-img{width:36px;height:44px;border-radius:6px;overflow:hidden;background:var(--cream)}
+.outfit-card-v .ocv-outer-item{flex:0 0 28px}
+.outfit-card-v .ocv-outer-item .oi-img{width:28px;height:34px;border-radius:4px;overflow:hidden;background:var(--cream)}
 .outfit-card-v .ocv-outer-item .oi-img img{width:100%;height:100%;object-fit:cover}
-.outfit-card-v .ocv-footer{padding:6px 8px}
-.outfit-card-v .ocv-meta{font-size:10px;color:var(--text-light);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.outfit-card-v .ocv-footer{padding:4px 6px}
+.outfit-card-v .ocv-meta{font-size:9px;color:var(--text-light);display:flex;align-items:center;gap:4px;flex-wrap:wrap}
 .outfit-card-v .ocv-meta .worn-count{color:var(--caramel);font-weight:600}
-.outfit-card-v .ocv-actions{display:flex;gap:4px;margin-top:4px}
-.outfit-card-v .ocv-actions .btn{flex:1;padding:5px 6px;font-size:10px}
-.outfit-card-v .ocv-del{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,0.45);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;z-index:2}
+.outfit-card-v .ocv-seasons{display:flex;gap:2px;flex-wrap:wrap;margin-top:2px}
+.outfit-card-v .ocv-seasons .s-tag{font-size:8px;padding:1px 4px;border-radius:8px;background:var(--cream);color:var(--text-mid)}
+.outfit-card-v .ocv-actions{display:flex;gap:3px;margin-top:3px}
+.outfit-card-v .ocv-actions .btn{flex:1;padding:3px 4px;font-size:9px}
+.outfit-card-v .ocv-del{position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,0.45);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;z-index:2}
 
 .modal-overlay{position:fixed;inset:0;background:rgba(53,46,42,0.5);backdrop-filter:blur(3px);z-index:200;display:none;align-items:flex-end;justify-content:center;animation:fadeIn .2s}
 .modal-overlay.show{display:flex}
@@ -621,6 +625,11 @@ function renderClothes(){
     if(currentCategory&&c.category!==currentCategory)return false;
     return true;
   });
+  filtered.sort((a,b)=>{
+    const ta=a.buyDate?new Date(a.buyDate).getTime():0;
+    const tb=b.buyDate?new Date(b.buyDate).getTime():0;
+    return tb-ta;
+  });
   if(filtered.length===0){
     grid.innerHTML='<div class="empty" style="grid-column:1/-1"><svg width="56" height="56" viewBox="0 0 24 24" fill="var(--text-light)"><path d="M20.38 3.46L16 2a4 4 0 0 0-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84h.42l-.92 8.65A2 2 0 0 0 5.36 21h13.28a2 2 0 0 0 1.99-2.35l-.92-8.65h.42a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.32-2.23z"/></svg><p>'+(clothes.length===0?'衣橱还是空的':'没有匹配的衣物')+'</p><p class="hint">'+(clothes.length===0?'点击底部+添加衣物':'试试调整搜索或筛选')+'</p></div>';
     return;
@@ -629,9 +638,11 @@ function renderClothes(){
     const colorObj=COLORS.find(co=>co.n===c.color);
     const wornCount=getWornCount(c.id);
     const ageStr=getBuyAge(c.buyDate);
+    const seasonTags=(c.season||[]).map(s=>'<span class="badge-season">'+(SEASON_EMOJI[s]||'')+s+'</span>').join('');
     return '<div class="clothing-card" onclick="editClothing(\''+c.id+'\')">'+
       '<div class="photo">'+(c.image?'<img src="'+c.image+'">':'<div class="ph">'+imgPh()+'</div>')+
         '<div class="badge">'+c.category+'</div>'+
+        (seasonTags?'<div class="badge-seasons">'+seasonTags+'</div>':'')+
       '</div>'+
       '<div class="info">'+
         '<div class="name">'+escapeHtml(c.name)+'</div>'+
@@ -924,12 +935,17 @@ function renderOutfitCardV(o){
     });
     html+='</div>';
   }
+  // 汇总季节标签
+  const seasonSet=[];
+  items.forEach(c=>{(c.season||[]).forEach(s=>{if(!seasonSet.includes(s))seasonSet.push(s)})});
+  const seasonTags=seasonSet.map(s=>'<span class="s-tag">'+(SEASON_EMOJI[s]||'')+s+'</span>').join('');
   // 信息(无名称)
   html+='<div class="ocv-footer">';
   html+='<div class="ocv-meta">';
   html+='<span>'+items.length+'件</span>';
   html+='<span class="worn-count">穿'+wornCount+'次</span>';
   html+='</div>';
+  if(seasonTags)html+='<div class="ocv-seasons">'+seasonTags+'</div>';
   html+='<div class="ocv-actions">';
   html+='<button class="btn btn-cream btn-sm" onclick="event.stopPropagation();recordOutfit(\''+o.id+'\')">记录</button>';
   html+='<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openOutfitBuilder(\''+o.id+'\')">编辑</button>';
