@@ -226,10 +226,13 @@ button{cursor:pointer;border:none;background:none}
 .spend-card{background:var(--card);border-radius:var(--radius-sm);box-shadow:var(--shadow);padding:14px;margin-bottom:10px}
 .spend-title{font-size:14px;font-weight:700;color:var(--text-dark);margin-bottom:10px;display:flex;align-items:center;gap:6px}
 .spend-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
-.spend-item{background:var(--bg);border-radius:var(--radius-xs);padding:10px 12px}
-.spend-item .sp-lbl{font-size:11px;color:var(--text-mid);font-weight:500}
-.spend-item .sp-val{font-size:18px;font-weight:700;color:var(--caramel);margin-top:2px}
-.spend-item .sp-cnt{font-size:10px;color:var(--text-light);margin-top:2px}
+.spend-item{background:var(--bg);border-radius:var(--radius-xs);padding:8px 10px}
+.spend-item .sp-head{display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:2px}
+.spend-item .sp-lbl{font-size:11px;color:var(--text-mid);font-weight:600;flex:1;text-align:center}
+.spend-item .sp-nav{width:20px;height:20px;border-radius:50%;background:var(--card);color:var(--text-mid);display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;cursor:pointer;flex:0 0 20px;user-select:none}
+.spend-item .sp-nav:active{background:var(--caramel);color:#fff}
+.spend-item .sp-val{font-size:18px;font-weight:700;color:var(--caramel);text-align:center}
+.spend-item .sp-cnt{font-size:10px;color:var(--text-light);text-align:center;margin-top:2px}
 
 .inspire-header{background:var(--brown-deep);color:var(--cream);padding:16px 20px 20px;border-radius:0 0 24px 24px}
 .inspire-header .ih-title{font-size:20px;font-weight:700;color:#fff;margin-bottom:4px}
@@ -1337,14 +1340,13 @@ function renderIdle(){
 }
 
 /* 我的页 */
-function calcSpend(days){
-  const now=Date.now();
-  const cutoff=now-days*86400000;
+let spendOffsets={week:0,month:0,half:0,year:0};
+function calcSpendRange(start,end){
   let total=0,count=0;
   clothes.forEach(c=>{
     if(c.buyDate){
       const d=new Date(c.buyDate).getTime();
-      if(d>=cutoff&&d<=now){
+      if(d>=start&&d<end){
         total+=(c.price||0);
         count++;
       }
@@ -1352,21 +1354,101 @@ function calcSpend(days){
   });
   return {total,count};
 }
+function getWeekRange(offset){
+  const now=new Date();
+  const day=now.getDay()||7;
+  const monday=new Date(now.getFullYear(),now.getMonth(),now.getDate()-day+1+offset*7);
+  const end=new Date(monday.getFullYear(),monday.getMonth(),monday.getDate()+7);
+  return {start:monday.getTime(),end:end.getTime()};
+}
+function getMonthRange(offset){
+  const now=new Date();
+  const start=new Date(now.getFullYear(),now.getMonth()+offset,1);
+  const end=new Date(now.getFullYear(),now.getMonth()+offset+1,1);
+  return {start:start.getTime(),end:end.getTime()};
+}
+function getHalfYearRange(offset){
+  const now=new Date();
+  const currentTotal=now.getFullYear()*2+(now.getMonth()<6?0:1);
+  const targetTotal=currentTotal+offset;
+  const targetYear=Math.floor(targetTotal/2);
+  const targetHalf=((targetTotal%2)+2)%2;
+  const startMonth=targetHalf*6;
+  const start=new Date(targetYear,startMonth,1);
+  const end=new Date(targetYear,startMonth+6,1);
+  return {start:start.getTime(),end:end.getTime()};
+}
+function getYearRange(offset){
+  const now=new Date();
+  const year=now.getFullYear()+offset;
+  const start=new Date(year,0,1);
+  const end=new Date(year+1,0,1);
+  return {start:start.getTime(),end:end.getTime()};
+}
+function fmtMD(ts){const d=new Date(ts);return(d.getMonth()+1)+'.'+d.getDate()}
+function getWeekLabel(offset){
+  if(offset===0)return '本周';
+  if(offset===-1)return '上周';
+  if(offset===1)return '下周';
+  const r=getWeekRange(offset);
+  return fmtMD(r.start)+'-'+fmtMD(r.end-86400000);
+}
+function getMonthLabel(offset){
+  const now=new Date();
+  if(offset===0)return '本月';
+  if(offset===-1)return '上月';
+  if(offset===1)return '下月';
+  const d=new Date(now.getFullYear(),now.getMonth()+offset,1);
+  return d.getFullYear()+'年'+(d.getMonth()+1)+'月';
+}
+function getHalfLabel(offset){
+  const now=new Date();
+  const currentTotal=now.getFullYear()*2+(now.getMonth()<6?0:1);
+  const targetTotal=currentTotal+offset;
+  const targetYear=Math.floor(targetTotal/2);
+  const targetHalf=((targetTotal%2)+2)%2;
+  const halfStr=targetHalf===0?'上半年':'下半年';
+  if(offset===0)return '本半年';
+  return targetYear+'年'+halfStr;
+}
+function getYearLabel(offset){
+  const now=new Date();
+  const year=now.getFullYear()+offset;
+  return year+'年';
+}
+function shiftSpend(type,dir){
+  spendOffsets[type]+=dir;
+  renderSpendGrid();
+}
+function renderSpendGrid(){
+  const periods=[
+    {type:'week',rangeFn:getWeekRange,labelFn:getWeekLabel},
+    {type:'month',rangeFn:getMonthRange,labelFn:getMonthLabel},
+    {type:'half',rangeFn:getHalfYearRange,labelFn:getHalfLabel},
+    {type:'year',rangeFn:getYearRange,labelFn:getYearLabel}
+  ];
+  $('spendGrid').innerHTML=periods.map(p=>{
+    const off=spendOffsets[p.type];
+    const r=p.rangeFn(off);
+    const res=calcSpendRange(r.start,r.end);
+    const lbl=p.labelFn(off);
+    return '<div class="spend-item">'+
+      '<div class="sp-head">'+
+        '<span class="sp-nav" onclick="shiftSpend(\''+p.type+'\',-1)">‹</span>'+
+        '<span class="sp-lbl">'+lbl+'</span>'+
+        '<span class="sp-nav" onclick="shiftSpend(\''+p.type+'\',1)">›</span>'+
+      '</div>'+
+      '<div class="sp-val">¥'+res.total.toFixed(0)+'</div>'+
+      '<div class="sp-cnt">'+res.count+'件</div>'+
+    '</div>';
+  }).join('');
+}
 function renderProfile(){
   $('pfClothes').textContent=clothes.length;
   $('pfOutfits').textContent=outfits.length;
   $('pfInspires').textContent=inspires.length;
   $('pfRecords').textContent=records.length;
-  const periods=[
-    {label:'近一周',days:7},
-    {label:'近一月',days:30},
-    {label:'近半年',days:182},
-    {label:'近一年',days:365}
-  ];
-  $('spendGrid').innerHTML=periods.map(p=>{
-    const r=calcSpend(p.days);
-    return '<div class="spend-item"><div class="sp-lbl">'+p.label+'</div><div class="sp-val">¥'+r.total.toFixed(0)+'</div><div class="sp-cnt">'+r.count+'件</div></div>';
-  }).join('');
+  renderSpendGrid();
 }
 function exportData(){
   const data={clothes,outfits,records,inspires,savedSources,exportAt:new Date().toISOString()};
