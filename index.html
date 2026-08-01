@@ -483,7 +483,20 @@ button{cursor:pointer;border:none;background:none}
   <div class="modal">
     <div class="modal-header"><h2 id="recordModalTitle">记录穿着</h2><div class="modal-close" onclick="closeModal('recordModal')">&times;</div></div>
     <input type="hidden" id="recordDate">
-    <div class="form-group"><label class="form-label">选择穿搭方案</label><div id="recordOutfitList" style="display:flex;flex-direction:column;gap:8px"></div></div>
+    <div class="form-group">
+      <div class="chip-group" id="recordModePicker">
+        <div class="chip-opt selected" data-val="outfit" onclick="switchRecordMode('outfit',this)">从已有搭配选</div>
+        <div class="chip-opt" data-val="pick" onclick="switchRecordMode('pick',this)">自由选单品</div>
+      </div>
+    </div>
+    <div id="recordOutfitView">
+      <div class="form-group"><label class="form-label">选择穿搭方案</label><div id="recordOutfitList" style="display:flex;flex-direction:column;gap:8px"></div></div>
+    </div>
+    <div id="recordPickView" style="display:none">
+      <div class="form-group"><label class="form-label">场景类型</label><div class="chip-group" id="recordTypePicker"><div class="chip-opt" data-val="通勤" onclick="selectChip(this)">通勤</div><div class="chip-opt" data-val="外出" onclick="selectChip(this)">外出</div></div></div>
+      <div class="form-group"><label class="form-label">风格</label><div class="chip-group" id="recordStylePicker"></div></div>
+      <div class="form-group"><label class="form-label">搭配单品(上衣在上 下装在下,外套可叠放)</label><div id="recordSlots"></div></div>
+    </div>
     <div class="form-group"><label class="form-label">备注</label><textarea class="form-textarea" id="recordNote" placeholder="今天穿的感受?" maxlength="100"></textarea></div>
     <div class="form-actions"><button class="btn btn-cream" id="recordDeleteBtn" style="display:none" onclick="deleteRecord()">删除</button><button class="btn btn-cream" onclick="closeModal('recordModal')">取消</button><button class="btn btn-primary" onclick="saveRecord()">保存</button></div>
   </div>
@@ -700,6 +713,8 @@ let currentInspireScene='all';
 let currentOutfitFilter='all';
 let homeOutfitFilter='all';
 let outfitBuilder={};
+let recordBuilder={};      // 记录弹窗"自由选单品"模式下的 builder
+let pickerContext='outfit'; // 'outfit' | 'record' - pickerModal 当前写入的 builder
 let editRecordDate=null;
 let currentRating=0;
 
@@ -969,8 +984,13 @@ function renderOutfitSlots(){
   html+='</div>';
   slots.innerHTML=html;
 }
+/* 根据 pickerContext 获取当前 builder */
+function getActiveBuilder(){return pickerContext==='record'?recordBuilder:outfitBuilder}
+/* 通用 render 插槽区，可指定容器与移除函数前缀 */
 function renderSlotRow(cat){
-  const itemId=outfitBuilder[cat];const item=itemId?getClothing(itemId):null;
+  const b=getActiveBuilder();
+  const itemId=b[cat];const item=itemId?getClothing(itemId):null;
+  const prefix=pickerContext==='record'?'record':'';
   return '<div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--bg);border-radius:var(--radius-xs);margin-bottom:6px">'+
     '<div style="width:48px;height:48px;border-radius:8px;overflow:hidden;background:var(--cream);flex:0 0 auto">'+
       (item&&item.image?'<img src="'+item.image+'" style="width:100%;height:100%;object-fit:cover">':'')+
@@ -981,7 +1001,8 @@ function renderSlotRow(cat){
   '</div>';
 }
 function renderOuterArea(){
-  const outerIds=outfitBuilder['外套']||[];
+  const b=getActiveBuilder();
+  const outerIds=b['外套']||[];
   const outerList=Array.isArray(outerIds)?outerIds:(outerIds?[outerIds]:[]);
   let html='<div style="display:flex;gap:6px;overflow-x:auto;padding:6px;background:var(--bg);border-radius:var(--radius-xs)">';
   if(outerList.length===0){
@@ -1008,10 +1029,11 @@ function openPicker(slotKey){
   if(available.length===0){
     grid.innerHTML='<div class="empty" style="grid-column:1/-1"><p>没有'+slotKey+'类衣物</p><p class="hint">先去添加一些吧</p></div>';
   }else{
-    const sel=outfitBuilder[slotKey];
+    const b=getActiveBuilder();
+    const sel=b[slotKey];
     grid.innerHTML=available.map(c=>{
       let isSel=false;
-      if(slotKey==='外套'){isSel=(outfitBuilder['外套']||[]).includes(c.id)}
+      if(slotKey==='外套'){isSel=(b['外套']||[]).includes(c.id)}
       else{isSel=sel===c.id}
       return '<div class="picker-card '+(isSel?'selected':'')+'" onclick="pickItem(\''+slotKey+'\',\''+c.id+'\')">'+
         '<div class="pc-img">'+(c.image?'<img src="'+c.image+'">':'')+'</div>'+
@@ -1023,20 +1045,29 @@ function openPicker(slotKey){
   openModal('pickerModal');
 }
 function pickItem(slotKey,itemId){
+  const b=getActiveBuilder();
   if(slotKey==='外套'){
-    if(!outfitBuilder['外套'])outfitBuilder['外套']=[];
-    if(!outfitBuilder['外套'].includes(itemId))outfitBuilder['外套'].push(itemId);
+    if(!b['外套'])b['外套']=[];
+    if(!b['外套'].includes(itemId))b['外套'].push(itemId);
   }else{
-    outfitBuilder[slotKey]=itemId;
+    b[slotKey]=itemId;
   }
-  renderOutfitSlots();
+  if(pickerContext==='record')renderRecordSlots();
+  else renderOutfitSlots();
   closeModal('pickerModal');
   toast('已选择');
 }
-function removeFromSlot(slotKey){delete outfitBuilder[slotKey];renderOutfitSlots()}
+function removeFromSlot(slotKey){
+  const b=getActiveBuilder();
+  delete b[slotKey];
+  if(pickerContext==='record')renderRecordSlots();
+  else renderOutfitSlots();
+}
 function removeOuter(idx){
-  if(outfitBuilder['外套'])outfitBuilder['外套'].splice(idx,1);
-  renderOutfitSlots();
+  const b=getActiveBuilder();
+  if(b['外套'])b['外套'].splice(idx,1);
+  if(pickerContext==='record')renderRecordSlots();
+  else renderOutfitSlots();
 }
 function saveOutfit(){
   const itemIds=[];
@@ -1166,16 +1197,121 @@ function recordToday(){
   const today=fmtDate(new Date());
   openRecordModal(today);
 }
+/* 把 builder 转为 itemIds 数组 */
+function builderToItemIds(b){
+  const ids=[];
+  ['上衣','裤子','裙子','鞋','配饰'].forEach(s=>{if(b[s])ids.push(b[s])});
+  const outers=b['外套'];
+  if(Array.isArray(outers)&&outers.length>0)ids.push(...outers);
+  else if(outers&&!Array.isArray(outers))ids.push(outers);
+  return ids;
+}
+/* 查重：按 items 集合和 type 匹配已有搭配 */
+function findMatchingOutfit(itemIds,type){
+  const sorted=itemIds.slice().sort().join(',');
+  return outfits.find(o=>{
+    if(type&&o.type!==type)return false;
+    return o.items.slice().sort().join(',')===sorted;
+  });
+}
+function switchRecordMode(mode,el){
+  document.querySelectorAll('#recordModePicker .chip-opt').forEach(o=>o.classList.remove('selected'));
+  if(el)el.classList.add('selected');
+  else{
+    const t=document.querySelector('#recordModePicker [data-val="'+mode+'"]');
+    if(t)t.classList.add('selected');
+  }
+  if(mode==='pick'){
+    $('recordOutfitView').style.display='none';
+    $('recordPickView').style.display='block';
+    pickerContext='record';
+    renderRecordSlots();
+  }else{
+    $('recordOutfitView').style.display='block';
+    $('recordPickView').style.display='none';
+    pickerContext='outfit';
+  }
+}
+function renderRecordSlots(){
+  const slots=$('recordSlots');
+  if(!slots)return;
+  // 临时切换 pickerContext 以便通用 renderSlotRow 读对 builder
+  const old=pickerContext;pickerContext='record';
+  let html='';
+  html+='<div style="margin-bottom:8px"><div style="font-size:12px;font-weight:600;color:var(--text-mid);margin-bottom:4px">上衣</div>';
+  html+=renderSlotRow('上衣');
+  html+='</div>';
+  html+='<div style="margin-bottom:8px"><div style="font-size:12px;font-weight:600;color:var(--text-mid);margin-bottom:4px">外套 <span style="font-size:10px;color:var(--text-light)">(可添加多件,滑动查看)</span></div>';
+  html+=renderOuterArea();
+  html+='</div>';
+  html+='<div style="margin-bottom:8px"><div style="font-size:12px;font-weight:600;color:var(--text-mid);margin-bottom:4px">下装</div>';
+  html+=renderSlotRow('裤子');
+  html+=renderSlotRow('裙子');
+  html+='</div>';
+  html+='<div style="margin-bottom:8px"><div style="font-size:12px;font-weight:600;color:var(--text-mid);margin-bottom:4px">鞋和配饰</div>';
+  html+=renderSlotRow('鞋');
+  html+=renderSlotRow('配饰');
+  html+='</div>';
+  slots.innerHTML=html;
+  pickerContext=old;
+}
+function initRecordStylePicker(){
+  const box=$('recordStylePicker');if(!box)return;
+  box.innerHTML=STYLES.map(s=>'<div class="chip-opt" data-val="'+s+'" onclick="toggleChipMulti(this)">'+s+'</div>').join('');
+}
+function toggleChipMulti(el){el.classList.toggle('selected')}
 function openRecordModal(dateStr,outfitId){
   editRecordDate=dateStr;
   $('recordDate').value=dateStr;
   $('recordModalTitle').textContent=dateStr+' 穿着记录';
   $('recordNote').value='';
+  if(!$('recordStylePicker')||!$('recordStylePicker').innerHTML)initRecordStylePicker();
+  // 重置选择
+  recordBuilder={};
+  document.querySelectorAll('#recordStylePicker .chip-opt').forEach(o=>o.classList.remove('selected'));
+  document.querySelectorAll('#recordTypePicker .chip-opt').forEach(o=>o.classList.remove('selected'));
+  const defType=document.querySelector('#recordTypePicker [data-val="通勤"]');if(defType)defType.classList.add('selected');
   const existing=records.find(r=>r.date===dateStr);
   $('recordDeleteBtn').style.display=existing?'block':'none';
+  if(existing)try{
+    // 有已保存记录：如果能匹配到搭配 -> outfit 模式并选中；否则填充到 pick 模式
+    const o=outfits.find(x=>x.id===existing.outfitId);
+    if(o){
+      switchRecordMode('outfit');
+      const te=document.querySelector('#recordTypePicker [data-val="'+(o.type||'通勤')+'"]');
+      if(te){document.querySelectorAll('#recordTypePicker .chip-opt').forEach(x=>x.classList.remove('selected'));te.classList.add('selected')}
+      (o.style||[]).forEach(s=>{const e=document.querySelector('#recordStylePicker [data-val="'+s+'"]');if(e)e.classList.add('selected')});
+      // 同步填充到 recordBuilder 方便切模式
+      recordBuilder={};
+      o.items.forEach(itemId=>{const c=getClothing(itemId);if(c){
+        if(c.category==='外套'){if(!recordBuilder['外套'])recordBuilder['外套']=[];recordBuilder['外套'].push(itemId)}
+        else recordBuilder[c.category]=itemId;
+      }});
+    }else{
+      switchRecordMode('pick');
+    }
+  }catch(_){}
+  else if(outfitId){
+    const o=outfits.find(x=>x.id===outfitId);
+    if(o){
+      switchRecordMode('outfit');
+      const te=document.querySelector('#recordTypePicker [data-val="'+(o.type||'通勤')+'"]');
+      if(te){document.querySelectorAll('#recordTypePicker .chip-opt').forEach(x=>x.classList.remove('selected'));te.classList.add('selected')}
+      (o.style||[]).forEach(s=>{const e=document.querySelector('#recordStylePicker [data-val="'+s+'"]');if(e)e.classList.add('selected')});
+      recordBuilder={};
+      o.items.forEach(itemId=>{const c=getClothing(itemId);if(c){
+        if(c.category==='外套'){if(!recordBuilder['外套'])recordBuilder['外套']=[];recordBuilder['外套'].push(itemId)}
+        else recordBuilder[c.category]=itemId;
+      }});
+    }else switchRecordMode('outfit');
+  }else{
+    switchRecordMode('outfit');
+  }
+  // 渲染 outfit 列表
   const list=$('recordOutfitList');
   if(outfits.length===0){
-    list.innerHTML='<p style="color:var(--text-light);font-size:13px;text-align:center;padding:12px">还没有穿搭方案,请先在衣橱页创建</p>';
+    list.innerHTML='<p style="color:var(--text-light);font-size:13px;text-align:center;padding:12px">还没有穿搭方案，可切换至"自由选单品"手动选择</p>';
+    list.dataset.selected='';
   }else{
     const sel=existing?existing.outfitId:(outfitId||'');
     list.innerHTML=outfits.map(o=>{
@@ -1198,14 +1334,41 @@ function selectRecordOutfit(id,el){
 }
 function saveRecord(){
   const date=$('recordDate').value;
-  const outfitId=$('recordOutfitList').dataset.selected;
-  if(!outfitId){toast('请选择穿搭方案');return}
+  const isPickMode=document.querySelector('#recordModePicker [data-val="pick"].selected')!==null;
+  let outfitId=null;
+  let createdNew=false;
+  if(isPickMode){
+    // 自由选单品模式：组装 itemIds -> 查重 -> 无则新加入搭配
+    const itemIds=builderToItemIds(recordBuilder);
+    if(itemIds.length===0){toast('请至少选择一件衣物');return}
+    const typeEl=document.querySelector('#recordTypePicker .chip-opt.selected');
+    const type=typeEl?typeEl.dataset.val:'通勤';
+    const matched=findMatchingOutfit(itemIds,type);
+    if(matched){
+      outfitId=matched.id;
+    }else{
+      const styles=[...document.querySelectorAll('#recordStylePicker .chip-opt.selected')].map(o=>o.dataset.val);
+      const name=type+'搭配';
+      const newOutfit={id:uid(),name,items:itemIds,style:styles,type,createdAt:Date.now()};
+      outfits.push(newOutfit);
+      DB.set(DB.OUTFITS,outfits);
+      outfitId=newOutfit.id;
+      createdNew=true;
+    }
+  }else{
+    outfitId=$('recordOutfitList').dataset.selected;
+    if(!outfitId){toast('请选择穿搭方案');return}
+  }
   const note=$('recordNote').value.trim();
   const existing=records.find(r=>r.date===date);
   if(existing){existing.outfitId=outfitId;existing.note=note}
   else records.push({id:uid(),date,outfitId,note});
   DB.set(DB.RECORDS,records);
-  closeModal('recordModal');toast('已记录');
+  closeModal('recordModal');
+  pickerContext='outfit';
+  toast(createdNew?'已记录（新搭配已自动保存）':'已记录');
+  try{renderOutfits()}catch(_){}
+  try{renderHome()}catch(_){}
 }
 function deleteRecord(){
   records=records.filter(r=>r.date!==editRecordDate);
