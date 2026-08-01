@@ -230,13 +230,30 @@ button{cursor:pointer;border:none;background:none}
 .spend-card{background:var(--card);border-radius:var(--radius-sm);box-shadow:var(--shadow);padding:14px;margin-bottom:10px}
 .spend-title{font-size:14px;font-weight:700;color:var(--text-dark);margin-bottom:10px;display:flex;align-items:center;gap:6px}
 .spend-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
-.spend-item{background:var(--bg);border-radius:var(--radius-xs);padding:8px 10px}
+.spend-item{background:var(--bg);border-radius:var(--radius-xs);padding:8px 10px;cursor:pointer;transition:background .2s}
+.spend-item:active{background:var(--cream-dark)}
 .spend-item .sp-head{display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:2px}
 .spend-item .sp-lbl{font-size:11px;color:var(--text-mid);font-weight:600;flex:1;text-align:center}
 .spend-item .sp-nav{width:20px;height:20px;border-radius:50%;background:var(--card);color:var(--text-mid);display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;cursor:pointer;flex:0 0 20px;user-select:none}
 .spend-item .sp-nav:active{background:var(--caramel);color:#fff}
 .spend-item .sp-val{font-size:18px;font-weight:700;color:var(--caramel);text-align:center}
 .spend-item .sp-cnt{font-size:10px;color:var(--text-light);text-align:center;margin-top:2px}
+.spend-item .sp-detail-hint{font-size:9px;color:var(--caramel);text-align:center;margin-top:3px;opacity:0.7}
+
+/* 购衣明细列表 */
+.spend-detail-list{display:flex;flex-direction:column;gap:10px}
+.spend-detail-item{display:flex;align-items:center;gap:12px;background:var(--bg);padding:10px;border-radius:var(--radius-xs)}
+.spend-detail-item .sd-thumb{width:56px;height:56px;border-radius:var(--radius-xs);overflow:hidden;background:var(--cream);flex:0 0 56px}
+.spend-detail-item .sd-thumb img{width:100%;height:100%;object-fit:cover}
+.spend-detail-item .sd-thumb .sd-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+.spend-detail-item .sd-info{flex:1;min-width:0}
+.spend-detail-item .sd-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spend-detail-item .sd-meta{font-size:11px;color:var(--text-light);margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.spend-detail-item .sd-price{font-size:14px;font-weight:700;color:var(--caramel);flex:0 0 auto}
+.spend-detail-summary{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:var(--cream);border-radius:var(--radius-xs);margin-bottom:12px}
+.spend-detail-summary .sd-sum-label{font-size:13px;color:var(--text-mid);font-weight:600}
+.spend-detail-summary .sd-sum-val{font-size:18px;font-weight:700;color:var(--caramel)}
+.spend-detail-summary .sd-sum-cnt{font-size:12px;color:var(--text-light);margin-left:8px}
 
 .inspire-header{background:var(--brown-deep);color:var(--cream);padding:16px 20px 20px;border-radius:0 0 24px 24px}
 .inspire-header .ih-title{font-size:20px;font-weight:700;color:#fff;margin-bottom:4px}
@@ -505,6 +522,14 @@ button{cursor:pointer;border:none;background:none}
     <div class="modal-header"><h2>灵感详情</h2><div class="modal-close" onclick="closeModal('inspireDetailModal')">&times;</div></div>
     <div id="inspireDetailContent"></div>
     <div class="form-actions" id="inspireDetailActions"><button class="btn btn-primary" id="inspireEditBtn" onclick="">编辑</button></div>
+  </div>
+</div>
+
+<!-- 购衣花费明细弹窗 -->
+<div class="modal-overlay" id="spendDetailModal">
+  <div class="modal">
+    <div class="modal-header"><h2 id="spendDetailTitle">购衣明细</h2><div class="modal-close" onclick="closeModal('spendDetailModal')">&times;</div></div>
+    <div id="spendDetailContent"></div>
   </div>
 </div>
 
@@ -1533,16 +1558,19 @@ function renderIdle(){
 let spendOffsets={week:0,month:0,half:0,year:0};
 function calcSpendRange(start,end){
   let total=0,count=0;
+  const items=[];
   clothes.forEach(c=>{
     if(c.buyDate){
       const d=new Date(c.buyDate).getTime();
       if(d>=start&&d<end){
         total+=(c.price||0);
         count++;
+        items.push(c);
       }
     }
   });
-  return {total,count};
+  items.sort((a,b)=>new Date(b.buyDate).getTime()-new Date(a.buyDate).getTime());
+  return {total,count,items};
 }
 function getWeekRange(offset){
   const now=new Date();
@@ -1618,16 +1646,53 @@ function renderSpendGrid(){
     const r=p.rangeFn(off);
     const res=calcSpendRange(r.start,r.end);
     const lbl=p.labelFn(off);
-    return '<div class="spend-item">'+
+    return '<div class="spend-item" onclick="showSpendDetail(\''+p.type+'\','+off+')">'+
       '<div class="sp-head">'+
-        '<span class="sp-nav" onclick="shiftSpend(\''+p.type+'\',-1)">‹</span>'+
+        '<span class="sp-nav" onclick="event.stopPropagation();shiftSpend(\''+p.type+'\',-1)">‹</span>'+
         '<span class="sp-lbl">'+lbl+'</span>'+
-        '<span class="sp-nav" onclick="shiftSpend(\''+p.type+'\',1)">›</span>'+
+        '<span class="sp-nav" onclick="event.stopPropagation();shiftSpend(\''+p.type+'\',1)">›</span>'+
       '</div>'+
       '<div class="sp-val">¥'+res.total.toFixed(0)+'</div>'+
       '<div class="sp-cnt">'+res.count+'件</div>'+
+      (res.count>0?'<div class="sp-detail-hint">点击查看明细</div>':'')+
     '</div>';
   }).join('');
+}
+function showSpendDetail(type,off){
+  const rangeFns={week:getWeekRange,month:getMonthRange,half:getHalfYearRange,year:getYearRange};
+  const labelFns={week:getWeekLabel,month:getMonthLabel,half:getHalfLabel,year:getYearLabel};
+  const r=rangeFns[type](off);
+  const lbl=labelFns[type](off);
+  const res=calcSpendRange(r.start,r.end);
+  $('spendDetailTitle').textContent=lbl+' 购衣明细';
+  if(res.items.length===0){
+    $('spendDetailContent').innerHTML='<div class="empty" style="padding:30px 0"><svg width="48" height="48" viewBox="0 0 24 24" fill="var(--text-light)"><path d="M20.38 3.46L16 2a4 4 0 0 0-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84h.42l-.92 8.65A2 2 0 0 0 5.36 21h13.28a2 2 0 0 0 1.99-2.35l-.92-8.65h.42a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.32-2.23z"/></svg><p>该时段暂无购衣记录</p></div>';
+  }else{
+    const listHtml=res.items.map(c=>{
+      const colorObj=COLORS.find(co=>co.n===c.color);
+      const dateStr=c.buyDate?new Date(c.buyDate).toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'}):'';
+      return '<div class="spend-detail-item" onclick="closeModal(\'spendDetailModal\');editClothing(\''+c.id+'\')">'+
+        '<div class="sd-thumb">'+(c.image?'<img src="'+c.image+'">':'<div class="sd-ph">'+imgPh()+'</div>')+'</div>'+
+        '<div class="sd-info">'+
+          '<div class="sd-name">'+escapeHtml(c.name)+'</div>'+
+          '<div class="sd-meta">'+
+            '<span>'+c.category+'</span>'+
+            (c.color?'<span style="width:10px;height:10px;border-radius:50%;background:'+(colorObj?colorObj.h:'#888')+';border:1px solid rgba(0,0,0,0.1)"></span><span>'+c.color+'</span>':'')+
+            (c.brand?'<span>'+escapeHtml(c.brand)+'</span>':'')+
+            (dateStr?'<span>'+dateStr+'</span>':'')+
+          '</div>'+
+        '</div>'+
+        (c.price?'<div class="sd-price">¥'+c.price+'</div>':'')+
+      '</div>';
+    }).join('');
+    $('spendDetailContent').innerHTML=
+      '<div class="spend-detail-summary">'+
+        '<div><span class="sd-sum-label">合计</span><span class="sd-sum-cnt">'+res.count+'件</span></div>'+
+        '<div class="sd-sum-val">¥'+res.total.toFixed(0)+'</div>'+
+      '</div>'+
+      '<div class="spend-detail-list">'+listHtml+'</div>';
+  }
+  openModal('spendDetailModal');
 }
 function renderProfile(){
   $('pfClothes').textContent=clothes.length;
