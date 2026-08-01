@@ -417,6 +417,11 @@ button{cursor:pointer;border:none;background:none}
       <div class="arrow">›</div>
     </div>
     <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+    <div class="menu-item" onclick="diagnoseData()">
+      <div class="micon"><svg width="20" height="20" viewBox="0 0 24 24" fill="var(--caramel)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg></div>
+      <div class="mtext"><div class="mt">数据诊断与恢复</div><div class="ms">检查并恢复丢失的数据</div></div>
+      <div class="arrow">›</div>
+    </div>
     <div class="menu-item" onclick="clearAllData()">
       <div class="micon"><svg width="20" height="20" viewBox="0 0 24 24" fill="var(--orange)"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></div>
       <div class="mtext"><div class="mt">清空数据</div><div class="ms">删除所有衣物和记录</div></div>
@@ -543,6 +548,16 @@ button{cursor:pointer;border:none;background:none}
   <div class="modal">
     <div class="modal-header"><h2 id="spendDetailTitle">购衣明细</h2><div class="modal-close" onclick="closeModal('spendDetailModal')">&times;</div></div>
     <div id="spendDetailContent"></div>
+  </div>
+</div>
+
+<!-- 数据诊断弹窗 -->
+<div class="modal-overlay" id="diagModal">
+  <div class="modal">
+    <div class="modal-header"><h2>数据诊断与恢复</h2><div class="modal-close" onclick="closeModal('diagModal')">&times;</div></div>
+    <div id="diagContent" style="padding:0 4px"></div>
+    <div class="form-actions" id="diagActions" style="display:none"><button class="btn btn-cream" onclick="closeModal('diagModal')">关闭</button><button class="btn btn-primary" id="diagRestoreBtn" onclick="restoreFromDiag()">恢复数据</button></div>
+    <div class="form-actions" id="diagCloseActions" style="display:none"><button class="btn btn-primary" onclick="closeModal('diagModal')">关闭</button></div>
   </div>
 </div>
 
@@ -1909,6 +1924,130 @@ function clearAllData(){
   DB.set(DB.CLOTHES,clothes);DB.set(DB.OUTFITS,outfits);DB.set(DB.RECORDS,records);DB.set(DB.INSPIRES,inspires);DB.set(DB.SOURCES,savedSources);
   renderProfile();renderClothes();renderOutfits();renderInspire();renderHome();
   toast('已清空');
+}
+
+/* 数据诊断与恢复 */
+let diagFound={}; /* 诊断找到的可恢复数据 */
+async function diagnoseData(){
+  $('diagContent').innerHTML='<p style="text-align:center;padding:20px;color:var(--text-mid)">正在扫描...</p>';
+  $('diagActions').style.display='none';
+  $('diagCloseActions').style.display='none';
+  openModal('diagModal');
+  const found={};
+  const knownKeys=['wc_clothes','wc_outfits','wc_records','wc_inspires','wc_sources','wc_last_buy_date'];
+  /* 1. 扫描 localStorage 所有 key */
+  let lsReport=[];
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    let raw=null,len=0;
+    try{raw=localStorage.getItem(k);len=raw?raw.length:0}catch(_){}
+    let parsed=null;
+    try{parsed=JSON.parse(raw)}catch(_){}
+    const arrLen=Array.isArray(parsed)?parsed.length:0;
+    lsReport.push({key:k,size:len,arrLen,parsed});
+    /* 如果是已知 key 且有数据，记录下来 */
+    if(knownKeys.includes(k)&&arrLen>0){
+      found[k]={source:'localStorage',data:parsed,arrLen};
+    }
+  }
+  /* 2. 扫描 IndexedDB 所有记录 */
+  let idbReport=[];
+  try{
+    await initIDB();
+    const allData=await new Promise((resolve,reject)=>{
+      const tx=idb.transaction(IDB_STORE,'readonly');
+      const store=tx.objectStore(IDB_STORE);
+      const req=store.getAll();
+      req.onsuccess=()=>resolve(req.result||[]);
+      req.onerror=()=>reject(req.error);
+    });
+    allData.forEach(row=>{
+      if(row&&row.key){
+        const arrLen=Array.isArray(row.value)?row.value.length:0;
+        idbReport.push({key:row.key,arrLen,value:row.value});
+        if(knownKeys.includes(row.key)&&arrLen>0){
+          /* 如果 localStorage 没找到或者 IDB 数据更丰富 */
+          if(!found[row.key]||arrLen>found[row.key].arrLen){
+            found[row.key]={source:'IndexedDB',data:row.value,arrLen};
+          }
+        }
+      }
+    });
+  }catch(e){idbReport.push({error:e.message})}
+  /* 3. 检查内存变量 */
+  const memReport={
+    clothes:clothes.length,outfits:outfits.length,records:records.length,
+    inspires:inspires.length,sources:savedSources.length
+  };
+  /* 4. 渲染报告 */
+  let html='';
+  html+='<div style="background:var(--cream);border-radius:10px;padding:12px;margin-bottom:10px">';
+  html+='<div style="font-weight:700;font-size:14px;margin-bottom:6px">内存中的数据</div>';
+  html+='<div style="font-size:12px;color:var(--text-mid)">衣物:'+memReport.clothes+' / 搭配:'+memReport.outfits+' / 记录:'+memReport.records+' / 灵感:'+memReport.inspires+'</div>';
+  html+='</div>';
+  html+='<div style="background:var(--cream);border-radius:10px;padding:12px;margin-bottom:10px">';
+  html+='<div style="font-weight:700;font-size:14px;margin-bottom:6px">localStorage ('+lsReport.length+' 个 key)</div>';
+  if(lsReport.length===0){html+='<div style="font-size:12px;color:var(--text-light)">空</div>'}
+  else{lsReport.forEach(r=>{
+    html+='<div style="font-size:12px;color:var(--text-mid);margin:2px 0">'+r.key+' ('+r.size+'字节'+(r.arrLen>0?', '+r.arrLen+'条':'')+')</div>';
+  })}
+  html+='</div>';
+  html+='<div style="background:var(--cream);border-radius:10px;padding:12px;margin-bottom:10px">';
+  html+='<div style="font-weight:700;font-size:14px;margin-bottom:6px">IndexedDB ('+idbReport.length+' 条记录)</div>';
+  if(idbReport.length===0){html+='<div style="font-size:12px;color:var(--text-light)">空</div>'}
+  else{idbReport.forEach(r=>{
+    if(r.error){html+='<div style="font-size:12px;color:var(--orange)">错误:'+r.error+'</div>'}
+    else{html+='<div style="font-size:12px;color:var(--text-mid);margin:2px 0">'+r.key+' ('+r.arrLen+'条)</div>'}
+  })}
+  html+='</div>';
+  /* 5. 可恢复数据 */
+  const foundKeys=Object.keys(found);
+  if(foundKeys.length>0){
+    html+='<div style="background:#e8f5e9;border-radius:10px;padding:12px;margin-bottom:10px">';
+    html+='<div style="font-weight:700;font-size:14px;margin-bottom:6px;color:#2e7d32">找到可恢复数据</div>';
+    foundKeys.forEach(k=>{
+      const f=found[k];
+      html+='<div style="font-size:12px;color:var(--text-mid);margin:2px 0">'+k+': '+f.arrLen+'条 (来自'+f.source+')</div>';
+    });
+    html+='</div>';
+    diagFound=found;
+    $('diagActions').style.display='flex';
+    $('diagCloseActions').style.display='none';
+  }else{
+    html+='<div style="background:#fff3e0;border-radius:10px;padding:12px;margin-bottom:10px">';
+    html+='<div style="font-weight:700;font-size:14px;margin-bottom:6px;color:var(--orange)">未找到可恢复数据</div>';
+    html+='<div style="font-size:12px;color:var(--text-mid);line-height:1.6">';
+    html+='localStorage 和 IndexedDB 中都没有找到衣物数据。<br>';
+    html+='<b>可能原因：</b>之前存储配额满时数据被误删。<br>';
+    html+='<b>建议：</b>如果之前导出过备份文件，请使用"导入数据"恢复。';
+    html+='</div>';
+    html+='</div>';
+    $('diagActions').style.display='none';
+    $('diagCloseActions').style.display='flex';
+  }
+  $('diagContent').innerHTML=html;
+}
+async function restoreFromDiag(){
+  const keys=Object.keys(diagFound);
+  if(keys.length===0){toast('没有可恢复的数据');return}
+  let restored=0;
+  for(const k of keys){
+    const f=diagFound[k];
+    _cache[k]=f.data;
+    try{localStorage.setItem(k,JSON.stringify(f.data))}catch(e){_lsBad[k]=true}
+    try{await idbSet(k,f.data)}catch(_){}
+    restored++;
+  }
+  /* 重新加载内存变量 */
+  clothes=DB.get(DB.CLOTHES,[]);
+  outfits=DB.get(DB.OUTFITS,[]);
+  records=DB.get(DB.RECORDS,[]);
+  inspires=DB.get(DB.INSPIRES,[]);
+  savedSources=DB.get(DB.SOURCES,[]);
+  closeModal('diagModal');
+  initPickers();
+  renderProfile();renderClothes();renderOutfits();renderInspire();renderHome();
+  toast('已恢复'+restored+'项数据');
 }
 
 async function init(){
