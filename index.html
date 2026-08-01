@@ -643,7 +643,6 @@ const DB={
     _cache[k]=v;
     let lsOk=true;
     try{
-      /* 一旦 localStorage 触发过配额异常，对该 key 永久跳过 */
       if(_lsBad[k]){
         lsOk=false;
       }else{
@@ -652,9 +651,8 @@ const DB={
     }catch(e){
       lsOk=false;
       _lsBad[k]=true;
-      try{localStorage.removeItem(k)}catch(_){}
+      /* 注意：不要再 localStorage.removeItem！否则下次刷新即使 IDB 没初始化完也能读到旧数据 */
     }
-    /* 同步写 IndexedDB 兜底（不抛出，绝不影响流程） */
     try{
       if(typeof idbSet==='function'){
         idbSet(k,v).catch(()=>{});
@@ -669,26 +667,33 @@ const DB={
   }
 };
 
-/* 启动时从 IndexedDB 迁移数据到内存缓存，并用 IndexedDB 兜底 */
-async function loadFromIDB(){
+/* 启动时 localStorage ↔ IndexedDB 双向恢复，填 _cache，并尽量回写 localStorage */
+async function syncStorageBothWays(){
   for(const k of DB_KEYS){
+    let lsVal=null;
     try{
-      const v=await idbGet(k);
-      if(v!==null && v!==undefined){_cache[k]=v}
-    }catch(e){}
-  }
-}
-
-/* 用 IndexedDB 全量备份 localStorage 数据 */
-async function backupAllToIDB(){
-  for(const k of DB_KEYS){
-    if(k in _cache){
-      await idbSet(k,_cache[k]).catch(()=>{});
-    }else{
+      const raw=localStorage.getItem(k);
+      if(raw!==null){try{lsVal=JSON.parse(raw)}catch(_){lsVal=null}}
+    }catch(_){lsVal=null}
+    let idbVal=null;
+    try{idbVal=await idbGet(k)}catch(_){idbVal=null}
+    /* 比较长度优先选非空且更长（更丰富）的一方 */
+    const lsArr=Array.isArray(lsVal)?lsVal.length:-1;
+    const idArr=Array.isArray(idbVal)?idbVal.length:-1;
+    let winner=null;
+    if(lsVal!==null && idbVal===null){winner=lsVal}
+    else if(lsVal===null && idbVal!==null){winner=idbVal}
+    else if(lsVal!==null && idbVal!==null){
+      /* 都有值：按数组长度或 createdAt 最新判断（简单按长度） */
+      winner=(idArr>lsArr)?idbVal:lsVal;
+    }
+    if(winner!==null){
+      _cache[k]=winner;
+      /* 尽量把赢家回写到另一方 */
+      try{await idbSet(k,winner)}catch(_){}
       try{
-        const raw=localStorage.getItem(k);
-        if(raw!==null){const v=JSON.parse(raw);_cache[k]=v;await idbSet(k,v).catch(()=>{})}
-      }catch(e){}
+        if(!_lsBad[k]){localStorage.setItem(k,JSON.stringify(winner))}
+      }catch(e){_lsBad[k]=true}
     }
   }
 }
@@ -1909,14 +1914,13 @@ function clearAllData(){
 async function init(){
   try{
     await initIDB();
-    await loadFromIDB();
+    await syncStorageBothWays();
     clothes=DB.get(DB.CLOTHES,[]);
     outfits=DB.get(DB.OUTFITS,[]);
     records=DB.get(DB.RECORDS,[]);
     inspires=DB.get(DB.INSPIRES,[]);
     savedSources=DB.get(DB.SOURCES,[]);
-  }catch(e){console.warn('IDB load failed, using localStorage:',e)}
-  try{backupAllToIDB()}catch(e){}
+  }catch(e){console.warn('IDB sync failed, using localStorage fallback:',e)}
   initPickers();
   renderHome();
   $('searchInput').addEventListener('input',renderClothes);
