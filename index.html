@@ -666,7 +666,6 @@ const DB={
     }catch(e){
       lsOk=false;
       _lsBad[k]=true;
-      /* 注意：不要再 localStorage.removeItem！否则下次刷新即使 IDB 没初始化完也能读到旧数据 */
     }
     try{
       if(typeof idbSet==='function'){
@@ -674,6 +673,16 @@ const DB={
       }
     }catch(_){}
     return lsOk;
+  },
+  /* 异步写入并等待 IDB 完成，用于导入等关键场景 */
+  async setAsync(k,v){
+    _cache[k]=v;
+    try{
+      if(!_lsBad[k]){localStorage.setItem(k,JSON.stringify(v))}
+    }catch(e){_lsBad[k]=true}
+    try{
+      if(typeof idbSet==='function'){await idbSet(k,v)}
+    }catch(e){console.error('IDB write failed for',k,e)}
   },
   delete(k){
     delete _cache[k];
@@ -684,6 +693,7 @@ const DB={
 
 /* 启动时 localStorage ↔ IndexedDB 双向恢复，填 _cache，并尽量回写 localStorage */
 async function syncStorageBothWays(){
+  const isEmpty=v=>v===null||v===undefined||(Array.isArray(v)&&v.length===0);
   for(const k of DB_KEYS){
     let lsVal=null;
     try{
@@ -692,19 +702,19 @@ async function syncStorageBothWays(){
     }catch(_){lsVal=null}
     let idbVal=null;
     try{idbVal=await idbGet(k)}catch(_){idbVal=null}
-    /* 比较长度优先选非空且更长（更丰富）的一方 */
-    const lsArr=Array.isArray(lsVal)?lsVal.length:-1;
-    const idArr=Array.isArray(idbVal)?idbVal.length:-1;
+    /* 空数组视为无数据 */
+    if(isEmpty(lsVal))lsVal=null;
+    if(isEmpty(idbVal))idbVal=null;
+    const lsArr=Array.isArray(lsVal)?lsVal.length:0;
+    const idArr=Array.isArray(idbVal)?idbVal.length:0;
     let winner=null;
     if(lsVal!==null && idbVal===null){winner=lsVal}
     else if(lsVal===null && idbVal!==null){winner=idbVal}
     else if(lsVal!==null && idbVal!==null){
-      /* 都有值：按数组长度或 createdAt 最新判断（简单按长度） */
       winner=(idArr>lsArr)?idbVal:lsVal;
     }
     if(winner!==null){
       _cache[k]=winner;
-      /* 尽量把赢家回写到另一方 */
       try{await idbSet(k,winner)}catch(_){}
       try{
         if(!_lsBad[k]){localStorage.setItem(k,JSON.stringify(winner))}
@@ -1898,7 +1908,7 @@ function exportData(){
 function importData(e){
   const file=e.target.files[0];if(!file)return;
   const reader=new FileReader();
-  reader.onload=ev=>{
+  reader.onload=async ev=>{
     try{
       const data=JSON.parse(ev.target.result);
       if(!confirm('导入将覆盖当前数据,确定继续?'))return;
@@ -1907,13 +1917,20 @@ function importData(e){
       if(data.records)records=data.records;
       if(data.inspires)inspires=data.inspires;
       if(data.savedSources)savedSources=data.savedSources;
-      DB.set(DB.CLOTHES,clothes);DB.set(DB.OUTFITS,outfits);
-      DB.set(DB.RECORDS,records);DB.set(DB.INSPIRES,inspires);DB.set(DB.SOURCES,savedSources);
+      toast('正在写入存储...');
+      /* 用 setAsync 确保数据真正写入 IndexedDB 后再提示成功 */
+      await DB.setAsync(DB.CLOTHES,clothes);
+      await DB.setAsync(DB.OUTFITS,outfits);
+      await DB.setAsync(DB.RECORDS,records);
+      await DB.setAsync(DB.INSPIRES,inspires);
+      await DB.setAsync(DB.SOURCES,savedSources);
       renderProfile();renderClothes();renderOutfits();renderInspire();renderHome();
-      toast('导入成功');
+      toast('导入成功,数据已安全保存');
     }catch(err){
+      console.error('import error:',err);
       toast('导入失败:文件格式错误');
     }
+    e.target.value=''; /* 允许重复导入同一文件 */
   };
   reader.readAsText(file);
 }
