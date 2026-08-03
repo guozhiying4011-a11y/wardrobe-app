@@ -399,6 +399,10 @@ button{cursor:pointer;border:none;background:none}
       <div class="spend-title">购衣花费统计</div>
       <div class="spend-grid" id="spendGrid"></div>
     </div>
+    <div class="spend-card" style="margin-top:12px">
+      <div class="spend-title">存储状态</div>
+      <div id="storageStatus" style="font-size:13px;color:var(--text-mid);line-height:1.8"></div>
+    </div>
     <div class="menu-item" onclick="switchTab('wardrobe',document.querySelector('.tab[data-page=wardrobe]'))">
       <div class="micon"><svg width="20" height="20" viewBox="0 0 24 24" fill="var(--caramel)"><path d="M20.38 3.46L16 2a4 4 0 0 0-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84h.42l-.92 8.65A2 2 0 0 0 5.36 21h13.28a2 2 0 0 0 1.99-2.35l-.92-8.65h.42a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.32-2.23z"/></svg></div>
       <div class="mtext"><div class="mt">我的衣橱</div><div class="ms">管理所有衣物和搭配</div></div>
@@ -689,6 +693,7 @@ const _cache={};
 const DB_KEYS=['wc_clothes','wc_outfits','wc_records','wc_inspires','wc_sources','wc_last_buy_date'];
 let _dbReady=false;
 
+/* 写入结果：{ok: bool, lsOK: bool, idbPending: bool, err: string|null} */
 const DB={
   CLOTHES:'wc_clothes',OUTFITS:'wc_outfits',RECORDS:'wc_records',
   INSPIRES:'wc_inspires',SOURCES:'wc_sources',LAST_BUY_DATE:'wc_last_buy_date',
@@ -708,31 +713,47 @@ const DB={
       const old=_cache[k];
       if(Array.isArray(old)&&old.length>0){
         console.warn('[DB] 阻止空数组覆盖已有数据:',k,'(原有',old.length,'条)');
-        return true;
+        return {ok:true,lsOK:true,idbPending:!!idb,err:null};
       }
     }
     _cache[k]=v;
-    /* 始终双写：IDB + localStorage，确保任一存储失败时另一份仍有备份 */
+    /* 先写 IDB（异步，后台执行）*/
+    let idbPending=false;
     if(idb){
-      idbSet(k,v).catch(()=>{});
+      idbPending=true;
+      idbSet(k,v).catch(err=>console.error('[DB] idbSet failed for',k,err));
     }
-    try{localStorage.setItem(k,JSON.stringify(v))}catch(_){}
-    return true;
+    /* 再写 localStorage（同步，失败时返回错误给调用方）*/
+    let lsOK=true;let lsErr=null;
+    try{
+      localStorage.setItem(k,JSON.stringify(v));
+    }catch(e){
+      lsOK=false;lsErr=e&&e.name?e.name:(e&&e.message?e.message:String(e));
+      console.warn('[DB] localStorage write FAILED for',k,':',lsErr,'| bytes=',JSON.stringify(v).length);
+    }
+    /* OK 定义：至少有一份写成功 */
+    return {ok:lsOK||idbPending,lsOK,idbPending,err:lsErr};
   },
   async setAsync(k,v,force){
     if(!force&&Array.isArray(v)&&v.length===0){
       const old=_cache[k];
       if(Array.isArray(old)&&old.length>0){
         console.warn('[DB] 阻止空数组覆盖已有数据:',k);
-        return;
+        return {ok:true,lsOK:true,idbPending:!!idb,err:null};
       }
     }
     _cache[k]=v;
-    /* 先等 IDB 写完，再写 localStorage */
+    let lsOK=true;let lsErr=null;let idbOK=false;
+    /* 先等 IDB 写完 */
     if(idb){
-      try{await idbSet(k,v)}catch(e){}
+      try{await idbSet(k,v);idbOK=true}catch(e){console.error('[DB] setAsync idbSet failed:',k,e)}
     }
-    try{localStorage.setItem(k,JSON.stringify(v))}catch(_){}
+    /* 再写 localStorage */
+    try{localStorage.setItem(k,JSON.stringify(v))}catch(e){
+      lsOK=false;lsErr=e&&e.name?e.name:String(e);
+      console.warn('[DB] setAsync localStorage FAILED for',k,':',lsErr);
+    }
+    return {ok:lsOK||idbOK,lsOK,idbPending:idbOK,err:lsErr};
   },
   delete(k){
     delete _cache[k];
@@ -750,6 +771,8 @@ async function loadFromIDB(){
     }
   }
   const isEmpty=v=>v===null||v===undefined||(Array.isArray(v)&&v.length===0);
+  /* 先把所有 key 读完再写入，避免读到一半时状态不一致 */
+  const snapshot={};
   for(const k of DB_KEYS){
     let idbVal=null;
     if(idb){
@@ -768,11 +791,26 @@ async function loadFromIDB(){
     if(idbVal!==null&&lsVal===null)winner=idbVal;
     else if(idbVal===null&&lsVal!==null)winner=lsVal;
     else if(idbVal!==null&&lsVal!==null)winner=(idArr>=lsArr)?idbVal:lsVal;
-    if(winner!==null){
-      _cache[k]=winner;
-      /* 回写确保两份存储一致 */
-      if(idb){try{await idbSet(k,winner)}catch(_){}}
-      try{localStorage.setItem(k,JSON.stringify(winner))}catch(_){}
+    snapshot[k]={winner,idbVal,lsVal,idArr,lsArr};
+    console.log('[loadFromIDB]',k,'| IDB:',idArr,'条 | LS:',lsArr,'条 | winner:',winner?(idArr>=lsArr?'IDB':'LS'):'无');
+  }
+  /* 写入 _cache + 回写两份存储（失败不影响内存数据，绝不覆盖已有有效数据）*/
+  for(const k of DB_KEYS){
+    const s=snapshot[k];
+    if(s.winner===null||s.winner===undefined)continue;
+    _cache[k]=s.winner;
+    /* 只在：某存储当前为空，或者 winner 比它更多条时才回写 */
+    if(idb){
+      const needBack=isEmpty(s.idbVal)||s.idArr<(Array.isArray(s.winner)?s.winner.length:0);
+      if(needBack){try{await idbSet(k,s.winner)}catch(e){console.error('[loadFromIDB] idbSet back fail:',k,e)}}
+    }
+    const needBackLS=isEmpty(s.lsVal)||s.lsArr<(Array.isArray(s.winner)?s.winner.length:0);
+    if(needBackLS){
+      try{localStorage.setItem(k,JSON.stringify(s.winner))}
+      catch(e){
+        console.warn('[loadFromIDB] localStorage back fail (quota?):',k,e&&e.name);
+        /* 写不回去也没关系，内存里已有数据，内存里有效，之后每次保存都会重试 */
+      }
     }
   }
 }
@@ -965,17 +1003,18 @@ function openClothingModal(id){
 function editClothing(id){openClothingModal(id)}
 function handlePhotoUpload(e){
   const file=e.target.files[0];if(!file)return;
-  if(file.size>3*1024*1024){toast('图片太大,请选3MB以下的');return}
+  if(file.size>5*1024*1024){toast('图片太大,请选5MB以下的');return}
   const reader=new FileReader();
   reader.onload=ev=>{
     const img=new Image();
     img.onload=()=>{
-      const canvas=document.createElement('canvas');const maxW=500;let w=img.width,h=img.height;
-      if(w>maxW){h=h*maxW/w;w=maxW}
+      const canvas=document.createElement('canvas');const maxW=360;let w=img.width,h=img.height;
+      if(w>maxW){h=Math.round(h*maxW/w);w=maxW}
       canvas.width=w;canvas.height=h;canvas.getContext('2d').drawImage(img,0,0,w,h);
-      const comp=canvas.toDataURL('image/jpeg',0.75);
+      const comp=canvas.toDataURL('image/jpeg',0.6);
       $('photoUpload').innerHTML='<img src="'+comp+'">';
       $('photoUpload').dataset.image=comp;
+      console.log('[Photo] 压缩后大小:',Math.round(comp.length/1024),'KB');
     };
     img.src=ev.target.result;
   };
@@ -1001,10 +1040,15 @@ function saveClothing(){
     const data={id:id||uid(),name,category:catEl.dataset.val,color:colEl?colEl.dataset.n:'',style:styles,season:seasons,brand,price,buyDate,note,rating:currentRating||0,image:img,createdAt};
     if(id){const idx=clothes.findIndex(c=>c.id===id);if(idx>=0)clothes[idx]=data}
     else{clothes.push(data);if(data.buyDate)DB.set(DB.LAST_BUY_DATE,data.buyDate)}
-    const ok=DB.set(DB.CLOTHES,clothes);
+    const res=DB.set(DB.CLOTHES,clothes);
     closeModal('clothingModal');renderClothes();
-    if(ok){toast(id?'已更新':'已添加')}
-    else{toast(id?'已更新':'已添加（本地已满，存入 IndexedDB）')}
+    if(!res.lsOK){
+      toast((id?'已更新':'已添加')+'（浏览器本地存储已满，已存入 IndexedDB。建议到"设置-导出备份"及时导出备份文件）');
+    }else if(!res.idbPending){
+      toast((id?'已更新':'已添加')+'（IndexedDB 不可用，仅存储在本地。建议导出备份）');
+    }else{
+      toast(id?'已更新':'已添加');
+    }
   }catch(e){
     console.error('saveClothing error:',e);
     try{closeModal('clothingModal')}catch(_){}
@@ -1167,9 +1211,10 @@ function saveOutfit(){
   const data={id:id||uid(),name,items:itemIds,style:styles,type,createdAt:id?(outfits.find(o=>o.id===id)&&outfits.find(o=>o.id===id).createdAt||Date.now()):Date.now()};
   if(id){const idx=outfits.findIndex(o=>o.id===id);if(idx>=0)outfits[idx]=data}
   else outfits.push(data);
-  DB.set(DB.OUTFITS,outfits);
+  const res=DB.set(DB.OUTFITS,outfits);
   closeModal('outfitModal');renderOutfits();
-  toast(id?'搭配已更新':'搭配已保存');
+  if(!res.lsOK)toast((id?'搭配已更新':'搭配已保存')+'（本地存储已满，建议导出备份）');
+  else toast(id?'搭配已更新':'搭配已保存');
 }
 function randomOutfitToSave(){
   if(clothes.length===0){toast('衣橱是空的');return}
@@ -1268,8 +1313,8 @@ function renderOutfitCardV(o){
 function deleteOutfit(id){
   if(!confirm('删除这个搭配?'))return;
   outfits=outfits.filter(o=>o.id!==id);
-  DB.set(DB.OUTFITS,outfits);
-  renderOutfits();toast('已删除');
+  const res=DB.set(DB.OUTFITS,outfits);
+  renderOutfits();toast('已删除'+(!res.lsOK?'（本地存储已满，请导出备份）':''));
 }
 function recordOutfit(outfitId){
   const today=fmtDate(new Date());
@@ -1447,17 +1492,18 @@ function saveRecord(){
   const existing=records.find(r=>r.date===date);
   if(existing){existing.outfitId=outfitId;existing.note=note}
   else records.push({id:uid(),date,outfitId,note});
-  DB.set(DB.RECORDS,records);
+  const res=DB.set(DB.RECORDS,records);
   closeModal('recordModal');
   pickerContext='outfit';
-  toast(createdNew?'已记录（新搭配已自动保存）':'已记录');
+  const baseMsg=createdNew?'已记录（新搭配已自动保存）':'已记录';
+  toast(baseMsg+(!res.lsOK?'（本地存储已满，建议导出备份）':''));
   try{renderOutfits()}catch(_){}
   try{renderHome()}catch(_){}
 }
 function deleteRecord(){
   records=records.filter(r=>r.date!==editRecordDate);
-  DB.set(DB.RECORDS,records);
-  closeModal('recordModal');toast('已删除');
+  const res=DB.set(DB.RECORDS,records);
+  closeModal('recordModal');toast('已删除'+(!res.lsOK?'（本地存储已满，请导出备份）':''));
 }
 
 /* 灵感页 */
@@ -1540,10 +1586,11 @@ function handleInspireUpload(e){
   reader.onload=ev=>{
     const img=new Image();
     img.onload=()=>{
-      const canvas=document.createElement('canvas');const maxW=600;let w=img.width,h=img.height;
-      if(w>maxW){h=h*maxW/w;w=maxW}
+      const canvas=document.createElement('canvas');const maxW=480;let w=img.width,h=img.height;
+      if(w>maxW){h=Math.round(h*maxW/w);w=maxW}
       canvas.width=w;canvas.height=h;canvas.getContext('2d').drawImage(img,0,0,w,h);
-      const comp=canvas.toDataURL('image/jpeg',0.8);
+      const comp=canvas.toDataURL('image/jpeg',0.65);
+      console.log('[Inspire] 压缩后大小:',Math.round(comp.length/1024),'KB');
       openInspireModalWithData(comp);
     };
     img.src=ev.target.result;
@@ -1584,10 +1631,11 @@ function handleInspirePhoto(e){
   reader.onload=ev=>{
     const img=new Image();
     img.onload=()=>{
-      const canvas=document.createElement('canvas');const maxW=600;let w=img.width,h=img.height;
-      if(w>maxW){h=h*maxW/w;w=maxW}
+      const canvas=document.createElement('canvas');const maxW=480;let w=img.width,h=img.height;
+      if(w>maxW){h=Math.round(h*maxW/w);w=maxW}
       canvas.width=w;canvas.height=h;canvas.getContext('2d').drawImage(img,0,0,w,h);
-      const comp=canvas.toDataURL('image/jpeg',0.8);
+      const comp=canvas.toDataURL('image/jpeg',0.65);
+      console.log('[Inspire] 压缩后大小:',Math.round(comp.length/1024),'KB');
       $('inspirePhoto').innerHTML='<img src="'+comp+'">';
       $('inspirePhoto').dataset.image=comp;
     };
@@ -1610,15 +1658,15 @@ function saveInspire(){
     if(idx>=0){
       const old=inspires[idx];
       inspires[idx]={...old,image,source,note,cats,types,seasons};
-      DB.set(DB.INSPIRES,inspires);
+      const res=DB.set(DB.INSPIRES,inspires);
       closeModal('inspireModal');renderInspire();
-      toast('灵感已更新');
+      toast('灵感已更新'+(!res.lsOK?'（本地存储已满，建议导出备份）':''));
     }
   }else{
     inspires.push({id:uid(),image,source,note,cats,types,seasons,createdAt:Date.now()});
-    DB.set(DB.INSPIRES,inspires);
+    const res=DB.set(DB.INSPIRES,inspires);
     closeModal('inspireModal');renderInspire();
-    toast('灵感已收藏');
+    toast('灵感已收藏'+(!res.lsOK?'（本地存储已满，建议导出备份）':''));
   }
 }
 function editInspire(id){
@@ -1646,8 +1694,8 @@ function editInspire(id){
 function deleteInspire(id){
   if(!confirm('删除这条灵感?'))return;
   inspires=inspires.filter(i=>i.id!==id);
-  DB.set(DB.INSPIRES,inspires);
-  renderInspire();toast('已删除');
+  const res=DB.set(DB.INSPIRES,inspires);
+  renderInspire();toast('已删除'+(!res.lsOK?'（本地存储已满，请导出备份）':''));
 }
 function openInspireDetail(id){
   const i=inspires.find(x=>x.id===id);if(!i)return;
@@ -1678,9 +1726,9 @@ function addInspireFromUrl(){
   const types=[...document.querySelectorAll('#urlTypePicker .chip-opt.selected')].map(o=>o.dataset.val);
   const seasons=[...document.querySelectorAll('#urlSeasonPicker .chip-opt.selected')].map(o=>o.dataset.val);
   inspires.push({id:uid(),image:url,source:'链接',note:'',cats,types,seasons,createdAt:Date.now()});
-  DB.set(DB.INSPIRES,inspires);
+  const res=DB.set(DB.INSPIRES,inspires);
   closeModal('urlModal');renderInspire();
-  toast('已添加');
+  toast('已添加'+(!res.lsOK?'（本地存储已满，建议导出备份）':''));
 }
 
 /* 首页 */
@@ -1943,12 +1991,33 @@ function showSpendDetail(type,off){
   }
   openModal('spendDetailModal');
 }
+function fmtSize(bytes){if(bytes<1024)return bytes+'B';if(bytes<1024*1024)return Math.round(bytes/1024)+'KB';return (bytes/1024/1024).toFixed(2)+'MB'}
 function renderProfile(){
   $('pfClothes').textContent=clothes.length;
   $('pfOutfits').textContent=outfits.length;
   $('pfInspires').textContent=inspires.length;
   $('pfRecords').textContent=records.length;
   renderSpendGrid();
+  /* 存储状态 */
+  let lsTotal=0;const lsDetail=[];
+  DB_KEYS.forEach(k=>{try{const raw=localStorage.getItem(k);if(raw){lsTotal+=raw.length;lsDetail.push({k,len:raw.length})}}catch(_){}});
+  /* 估算总数据大小（_cache 序列化）*/
+  let cacheTotal=0;let quotaWarn=false;
+  try{cacheTotal=new Blob([JSON.stringify(_cache)]).size}catch(_){cacheTotal=JSON.stringify(_cache).length}
+  const LS_QUOTA=5*1024*1024;
+  if(cacheTotal>LS_QUOTA*0.85)quotaWarn=true;
+  let html='';
+  html+='<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>数据总大小：</span><b>'+fmtSize(cacheTotal)+'</b></div>';
+  html+='<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>浏览器本地存储：</span><b style="color:'+((lsTotal<LS_QUOTA*0.85)?'var(--text-dark)':'var(--orange)')+'">'+fmtSize(lsTotal)+' / 约5MB</b></div>';
+  html+='<div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>IndexedDB：</span><b style="color:'+((idb)?'#2e7d32':'var(--orange)')+'">'+((idb)?'✓ 可用':'✗ 不可用')+'</b></div>';
+  if(quotaWarn){
+    html+='<div style="background:#fff3e0;color:var(--orange);padding:8px 10px;border-radius:8px;font-size:12px;margin-top:6px;line-height:1.5">⚠️ 数据即将超过浏览器本地存储上限。建议立刻点击下方"导出数据"生成备份文件，避免数据丢失！</div>';
+  }else if(!idb){
+    html+='<div style="background:#fff3e0;color:var(--orange);padding:8px 10px;border-radius:8px;font-size:12px;margin-top:6px;line-height:1.5">⚠️ IndexedDB 不可用（仅依赖本地存储），建议导出备份确保安全。</div>';
+  }else{
+    html+='<div style="color:var(--text-light);font-size:12px;margin-top:4px">✓ 双份存储正常</div>';
+  }
+  $('storageStatus').innerHTML=html;
 }
 function exportData(){
   const data={clothes,outfits,records,inspires,savedSources,exportAt:new Date().toISOString()};
