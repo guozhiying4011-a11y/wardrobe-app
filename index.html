@@ -564,7 +564,7 @@ button{cursor:pointer;border:none;background:none}
 <div class="toast" id="toast"></div>
 
 <script>
-/* IndexedDB 封装 - 解决 localStorage 5MB 配额限制 */
+/* IndexedDB 封装 - 唯一可信数据源，彻底解决 localStorage 5MB 配额限制 */
 const IDB_NAME='wardrobe_app';
 const IDB_STORE='data';
 let idb=null;
@@ -639,86 +639,58 @@ function idbDelete(k){
 }
 
 /* 带内存缓存的存储层 - 同步读 + 异步写，解决配额问题 */
+/* ===== 存储层：IndexedDB 为唯一可信源 ===== */
 const _cache={};
-const _lsBad={};
 const DB_KEYS=['wc_clothes','wc_outfits','wc_records','wc_inspires','wc_sources','wc_last_buy_date'];
+let _dbReady=false;
 
 const DB={
   CLOTHES:'wc_clothes',OUTFITS:'wc_outfits',RECORDS:'wc_records',
   INSPIRES:'wc_inspires',SOURCES:'wc_sources',LAST_BUY_DATE:'wc_last_buy_date',
   get(k,d){
     if(k in _cache)return _cache[k];
-    try{
-      const raw=localStorage.getItem(k);
-      if(raw!==null){const v=JSON.parse(raw);_cache[k]=v;return v}
-    }catch(e){}
     return d;
   },
   set(k,v){
     _cache[k]=v;
-    let lsOk=true;
-    try{
-      if(_lsBad[k]){
-        lsOk=false;
-      }else{
-        localStorage.setItem(k,JSON.stringify(v));
-      }
-    }catch(e){
-      lsOk=false;
-      _lsBad[k]=true;
-    }
-    try{
-      if(typeof idbSet==='function'){
-        idbSet(k,v).catch(()=>{});
-      }
-    }catch(_){}
-    return lsOk;
+    if(!_dbReady){console.warn('DB.set before init, skipped:',k);return false}
+    idbSet(k,v).catch(e=>console.error('IDB write failed:',k,e));
+    return true;
   },
-  /* 异步写入并等待 IDB 完成，用于导入等关键场景 */
   async setAsync(k,v){
     _cache[k]=v;
-    try{
-      if(!_lsBad[k]){localStorage.setItem(k,JSON.stringify(v))}
-    }catch(e){_lsBad[k]=true}
-    try{
-      if(typeof idbSet==='function'){await idbSet(k,v)}
-    }catch(e){console.error('IDB write failed for',k,e)}
+    if(!_dbReady){console.warn('DB.setAsync before init, skipped:',k);return}
+    try{await idbSet(k,v)}catch(e){console.error('IDB write failed:',k,e)}
   },
   delete(k){
     delete _cache[k];
-    try{localStorage.removeItem(k)}catch(_){}
-    try{idbDelete(k).catch(()=>{})}catch(_){}
+    if(!_dbReady)return;
+    idbDelete(k).catch(()=>{});
   }
 };
 
-/* 启动时 localStorage ↔ IndexedDB 双向恢复，填 _cache，并尽量回写 localStorage */
-async function syncStorageBothWays(){
+/* 启动时从 IndexedDB 加载全部数据到 _cache，并从 localStorage 做一次性迁移 */
+async function loadFromIDB(){
   const isEmpty=v=>v===null||v===undefined||(Array.isArray(v)&&v.length===0);
   for(const k of DB_KEYS){
+    let idbVal=null;
+    try{idbVal=await idbGet(k)}catch(_){idbVal=null}
     let lsVal=null;
     try{
       const raw=localStorage.getItem(k);
       if(raw!==null){try{lsVal=JSON.parse(raw)}catch(_){lsVal=null}}
     }catch(_){lsVal=null}
-    let idbVal=null;
-    try{idbVal=await idbGet(k)}catch(_){idbVal=null}
-    /* 空数组视为无数据 */
-    if(isEmpty(lsVal))lsVal=null;
-    if(isEmpty(idbVal))idbVal=null;
-    const lsArr=Array.isArray(lsVal)?lsVal.length:0;
+    /* 选非空且更长的一方 */
     const idArr=Array.isArray(idbVal)?idbVal.length:0;
+    const lsArr=Array.isArray(lsVal)?lsVal.length:0;
     let winner=null;
-    if(lsVal!==null && idbVal===null){winner=lsVal}
-    else if(lsVal===null && idbVal!==null){winner=idbVal}
-    else if(lsVal!==null && idbVal!==null){
-      winner=(idArr>lsArr)?idbVal:lsVal;
-    }
+    if(!isEmpty(idbVal)&&isEmpty(lsVal))winner=idbVal;
+    else if(isEmpty(idbVal)&&!isEmpty(lsVal))winner=lsVal;
+    else if(!isEmpty(idbVal)&&!isEmpty(lsVal))winner=(idArr>=lsArr)?idbVal:lsVal;
     if(winner!==null){
       _cache[k]=winner;
+      /* 回写 IDB 确保一致 */
       try{await idbSet(k,winner)}catch(_){}
-      try{
-        if(!_lsBad[k]){localStorage.setItem(k,JSON.stringify(winner))}
-      }catch(e){_lsBad[k]=true}
     }
   }
 }
@@ -731,11 +703,11 @@ const SEASON_EMOJI={春:'🌸',夏:'☀️',秋:'🍂',冬:'❄️'};
 const INSPIRE_CATS=['通勤','外出'];
 const INSPIRE_TYPES=['上衣','裤子','裙子','外套','套装','其他'];
 
-let clothes=DB.get(DB.CLOTHES,[]);
-let outfits=DB.get(DB.OUTFITS,[]);
-let records=DB.get(DB.RECORDS,[]);
-let inspires=DB.get(DB.INSPIRES,[]);
-let savedSources=DB.get(DB.SOURCES,[]);
+let clothes=[];
+let outfits=[];
+let records=[];
+let inspires=[];
+let savedSources=[];
 let currentCategory='';
 let currentInspireTypes=[];
 let currentInspireSeasons=[];
@@ -2051,11 +2023,9 @@ async function restoreFromDiag(){
   for(const k of keys){
     const f=diagFound[k];
     _cache[k]=f.data;
-    try{localStorage.setItem(k,JSON.stringify(f.data))}catch(e){_lsBad[k]=true}
-    try{await idbSet(k,f.data)}catch(_){}
+    try{await idbSet(k,f.data)}catch(e){console.error('restore IDB write failed:',k,e)}
     restored++;
   }
-  /* 重新加载内存变量 */
   clothes=DB.get(DB.CLOTHES,[]);
   outfits=DB.get(DB.OUTFITS,[]);
   records=DB.get(DB.RECORDS,[]);
@@ -2070,13 +2040,17 @@ async function restoreFromDiag(){
 async function init(){
   try{
     await initIDB();
-    await syncStorageBothWays();
+    await loadFromIDB();
     clothes=DB.get(DB.CLOTHES,[]);
     outfits=DB.get(DB.OUTFITS,[]);
     records=DB.get(DB.RECORDS,[]);
     inspires=DB.get(DB.INSPIRES,[]);
     savedSources=DB.get(DB.SOURCES,[]);
-  }catch(e){console.warn('IDB sync failed, using localStorage fallback:',e)}
+    _dbReady=true;
+  }catch(e){
+    console.error('init failed, trying localStorage fallback:',e);
+    _dbReady=true;
+  }
   initPickers();
   renderHome();
   $('searchInput').addEventListener('input',renderClothes);
