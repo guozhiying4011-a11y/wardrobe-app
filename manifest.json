@@ -1,0 +1,23 @@
+{
+  "name": "智能衣橱",
+  "short_name": "衣橱",
+  "description": "电子衣橱 - 管理衣物、搭配和穿搭灵感",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#F5EDDF",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
