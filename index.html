@@ -381,10 +381,12 @@ button{cursor:pointer;border:none;background:none}
   <div class="inspire-scene-bar" id="inspireSceneBar"></div>
   <div class="inspire-filter-collapse">
     <div class="filter-toggle" onclick="toggleInspireFilter()">
-      <span>更多筛选(类别/季节)</span>
+      <span>更多筛选(月份/类别/季节)</span>
       <span class="toggle-arrow" id="filterToggleArrow">展开</span>
     </div>
     <div class="filter-collapse-body" id="filterCollapseBody">
+      <div class="inspire-filter-label">按月份 <span class="filter-hint">单选</span></div>
+      <div class="inspire-chips" id="inspireMonthChips"></div>
       <div class="inspire-filter-label">按类别 <span class="filter-hint">可多选</span></div>
       <div class="inspire-chips" id="inspireTypeChips"></div>
       <div class="inspire-filter-label">按季节 <span class="filter-hint">可多选叠加</span></div>
@@ -845,6 +847,7 @@ let currentCategory='';
 let currentInspireTypes=[];
 let currentInspireSeasons=[];
 let currentInspireScene='all';
+let currentInspireMonth='all'; /* 'all' 或 'YYYY-MM' */
 let currentOutfitFilter='all';
 let homeOutfitFilter='all';
 let outfitBuilder={};
@@ -1557,14 +1560,52 @@ function toggleInspireSeason(s){
 }
 function clearInspireTypes(){currentInspireTypes=[];renderInspire()}
 function clearInspireSeasons(){currentInspireSeasons=[];renderInspire()}
+function renderInspireMonthChips(){
+  /* 根据已有收藏的 createdAt 生成月份列表,倒序(最近在前) */
+  const monthSet=new Set();
+  inspires.forEach(i=>{
+    if(i.createdAt){
+      const d=new Date(i.createdAt);
+      if(!isNaN(d.getTime())){
+        const m=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+        monthSet.add(m);
+      }
+    }
+  });
+  const months=Array.from(monthSet).sort().reverse();
+  let html='<div class="chip '+(currentInspireMonth==='all'?'active':'')+'" onclick="setInspireMonth(\'all\')">全部</div>';
+  html+=months.map(m=>{
+    const [y,mm]=m.split('-');
+    const cnt=inspires.filter(i=>{
+      if(!i.createdAt)return false;
+      const d=new Date(i.createdAt);
+      if(isNaN(d.getTime()))return false;
+      return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')===m;
+    }).length;
+    const label=parseInt(mm,10)+'月';
+    const full=y+'年'+label;
+    return '<div class="chip '+(currentInspireMonth===m?'active':'')+'" onclick="setInspireMonth(\''+m+'\')" title="'+full+'">'+label+' <span style="font-size:10px;opacity:.7">'+y+'</span> <span style="font-size:10px;opacity:.7">'+cnt+'</span></div>';
+  }).join('');
+  $('inspireMonthChips').innerHTML=html;
+}
+function setInspireMonth(m){currentInspireMonth=m;renderInspire()}
 function renderInspire(){
   renderInspireSceneBar();
   renderInspireTypeChips();
   renderInspireSeasonChips();
+  renderInspireMonthChips();
   const grid=$('inspireGrid');
   let filtered=inspires;
   if(currentInspireScene!=='all'){
     filtered=filtered.filter(i=>(i.cats||[]).includes(currentInspireScene));
+  }
+  if(currentInspireMonth!=='all'){
+    filtered=filtered.filter(i=>{
+      if(!i.createdAt)return false;
+      const d=new Date(i.createdAt);
+      if(isNaN(d.getTime()))return false;
+      return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')===currentInspireMonth;
+    });
   }
   if(currentInspireTypes.length>0){
     filtered=filtered.filter(i=>(i.types||[]).some(t=>currentInspireTypes.includes(t)));
