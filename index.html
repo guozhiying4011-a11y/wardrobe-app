@@ -1574,6 +1574,13 @@ function renderInspire(){
   }
   /* 按添加时间倒序（最新在前） */
   filtered=filtered.slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  /* 每日轮换：按当天日期偏移，同一天顺序稳定，第二天看到不同的开头，避免总看到那几件 */
+  if(filtered.length>1){
+    const today=new Date();
+    const dayOfYear=Math.floor((today-new Date(today.getFullYear(),0,0))/86400000);
+    const offset=dayOfYear%filtered.length;
+    filtered=filtered.slice(offset).concat(filtered.slice(0,offset));
+  }
   if(filtered.length===0){
     grid.innerHTML='<div class="empty" style="column-span:all"><svg width="56" height="56" viewBox="0 0 24 24" fill="var(--text-light)"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg><p>'+(inspires.length===0?'还没有收藏':'没有符合条件的收藏')+'</p><p class="hint">'+(inspires.length===0?'上传图片或从链接添加':'试试调整筛选条件')+'</p></div>';
     return;
