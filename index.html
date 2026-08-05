@@ -2250,6 +2250,24 @@ async function restoreFromDiag(){
   toast('已恢复'+restored+'项数据');
 }
 
+/* 版本号：每次推送代码更新时改这个值，浏览器检测到变化会自动刷新清缓存 */
+const APP_VERSION='20260805b';
+/* 启动时检查版本，若 localStorage 里记录的版本不一致则强制刷新(带随机参数破缓存) */
+(function checkVersion(){
+  try{
+    const last=localStorage.getItem('wc_app_version');
+    if(last && last!==APP_VERSION){
+      console.log('[version] 检测到新版本 '+APP_VERSION+'(旧:'+last+'),强制刷新');
+      localStorage.setItem('wc_app_version',APP_VERSION);
+      const url=new URL(location.href);
+      url.searchParams.set('_v',APP_VERSION);
+      location.replace(url.toString());
+      return;
+    }
+    localStorage.setItem('wc_app_version',APP_VERSION);
+  }catch(e){}
+})();
+
 async function init(){
   /* IDB 初始化，失败则重试2次 */
   let idbOK=false;
