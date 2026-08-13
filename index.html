@@ -123,8 +123,10 @@ button{cursor:pointer;border:none;background:none}
 #page-wardrobe.active{display:flex;flex-direction:column;height:calc(100vh - var(--tabbar-h) - var(--safe-bottom) - 4px);overflow:hidden}
 #page-wardrobe .wardrobe-header{flex:0 0 auto}
 #page-wardrobe .sub-tabs{flex:0 0 auto;margin-bottom:4px}
+#page-wardrobe > #view-clothes,
+#page-wardrobe > #view-outfits{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column}
 #page-wardrobe .wardrobe-body{flex:1 1 auto;min-height:0;overflow:hidden;margin-top:0}
-#page-wardrobe .wardrobe-body .season-sidebar{position:static;top:auto;max-height:none;height:100%}
+#page-wardrobe .wardrobe-body .season-sidebar{position:static;top:auto;max-height:none;height:100%;flex:0 0 72px}
 #page-wardrobe .wardrobe-body .wardrobe-main{flex:1;min-width:0;overflow-y:auto;height:100%;padding-right:0}
 #page-wardrobe .wardrobe-body .wardrobe-main .clothes-grid{padding:0 12px 16px}
 #page-wardrobe .wardrobe-body .wardrobe-main .outfit-grid{padding:0 12px 16px}
@@ -1107,8 +1109,8 @@ function switchTab(page,el){
 function switchSubTab(which){
   $('st-clothes').classList.toggle('active',which==='clothes');
   $('st-outfits').classList.toggle('active',which==='outfits');
-  $('view-clothes').style.display=which==='clothes'?'block':'none';
-  $('view-outfits').style.display=which==='outfits'?'block':'none';
+  $('view-clothes').style.display=which==='clothes'?'':'none';
+  $('view-outfits').style.display=which==='outfits'?'':'none';
 }
 
 function initPickers(){
@@ -2766,7 +2768,7 @@ async function restoreFromDiag(){
 }
 
 /* 版本号：每次推送代码更新时改这个值，浏览器检测到变化会自动刷新清缓存 */
-const APP_VERSION='20260813e';
+const APP_VERSION='20260813f';
 /* 启动时检查版本，若 localStorage 里记录的版本不一致则强制刷新(带随机参数破缓存) */
 (function checkVersion(){
   try{
