@@ -118,6 +118,22 @@ button{cursor:pointer;border:none;background:none}
 .wardrobe-body{display:flex;gap:0;padding:0;margin-top:8px}
 .season-sidebar{flex:0 0 72px;background:rgba(255,255,255,0.55);backdrop-filter:blur(10px);border-right:1px solid rgba(53,46,42,0.05);padding:14px 0;display:flex;flex-direction:column;gap:2px;position:sticky;top:8px;max-height:calc(100vh - 180px);overflow-y:auto}
 .season-sidebar::-webkit-scrollbar{display:none}
+
+/* 衣橱页整体flex容器:header和sub-tabs固定,仅右侧内容区滚动 */
+#page-wardrobe.active{display:flex;flex-direction:column;height:calc(100vh - var(--tabbar-h) - var(--safe-bottom) - 4px);overflow:hidden}
+#page-wardrobe .wardrobe-header{flex:0 0 auto}
+#page-wardrobe .sub-tabs{flex:0 0 auto;margin-bottom:4px}
+#page-wardrobe .wardrobe-body{flex:1 1 auto;min-height:0;overflow:hidden;margin-top:0}
+#page-wardrobe .wardrobe-body .season-sidebar{position:static;top:auto;max-height:none;height:100%}
+#page-wardrobe .wardrobe-body .wardrobe-main{flex:1;min-width:0;overflow-y:auto;height:100%;padding-right:0}
+#page-wardrobe .wardrobe-body .wardrobe-main .chip-bar{padding:10px 12px 8px;position:sticky;top:0;background:var(--bg);z-index:1}
+#page-wardrobe .wardrobe-body .wardrobe-main .clothes-grid{padding:0 12px 16px}
+#page-wardrobe .wardrobe-body .wardrobe-main .outfit-filter-bar{padding:4px 12px 10px;position:sticky;top:0;background:var(--bg);z-index:1}
+#page-wardrobe .wardrobe-body .wardrobe-main .outfit-grid{padding:0 12px 16px}
+#page-wardrobe .wardrobe-body .wardrobe-main > div:first-child:not(.outfit-filter-bar):not(.chip-bar){padding:8px 12px}
+
+/* 搭配卡片整套价格 */
+.outfit-card-v .ocv-meta .ocv-price{color:var(--orange);font-weight:700;margin-left:auto;background:rgba(232,108,47,0.1);padding:0 5px;border-radius:10px}
 .season-item{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 2px;cursor:pointer;position:relative;transition:all .22s cubic-bezier(.4,0,.2,1);border-radius:10px;margin:0 8px}
 .season-item:active{background:rgba(53,46,42,0.05)}
 .season-item .si-icon{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;background:linear-gradient(135deg,var(--cream) 0%,rgba(255,255,255,0.6) 100%);margin-bottom:4px;transition:all .22s cubic-bezier(.4,0,.2,1);border:1px solid rgba(53,46,42,0.04)}
@@ -606,7 +622,7 @@ button{cursor:pointer;border:none;background:none}
     <input type="hidden" id="outfitId">
     <input type="hidden" id="outfitName" value="">
     <div class="form-group"><label class="form-label">场景类型 *</label><div class="chip-group" id="outfitTypePicker"><div class="chip-opt" data-val="通勤" onclick="selectChip(this)">通勤</div><div class="chip-opt" data-val="外出" onclick="selectChip(this)">外出</div></div></div>
-    <div class="form-group"><label class="form-label">风格</label><div class="chip-group" id="outfitStylePicker"></div></div>
+    <div class="form-group"><label class="form-label">适合季节</label><div class="chip-group" id="outfitSeasonPicker"></div></div>
     <div class="form-group"><label class="form-label">搭配单品(上衣在上 下装在下,外套可叠放滑动查看)</label><div id="outfitSlots"></div></div>
     <div class="form-actions"><button class="btn btn-cream" onclick="closeModal('outfitModal')">取消</button><button class="btn btn-primary" onclick="saveOutfit()">保存搭配</button></div>
   </div>
@@ -1078,7 +1094,7 @@ function switchSubTab(which){
 function initPickers(){
   $('categoryPicker').innerHTML=CATEGORIES.map(c=>'<div class="chip-opt" data-val="'+c+'" onclick="selectChip(this)">'+c+'</div>').join('');
   $('seasonPicker').innerHTML=SEASONS.map(s=>'<div class="chip-opt" data-val="'+s+'" onclick="toggleChip(this)">'+SEASON_EMOJI[s]+s+'</div>').join('');
-  $('outfitStylePicker').innerHTML=STYLES.map(s=>'<div class="chip-opt" data-val="'+s+'" onclick="toggleChip(this)">'+s+'</div>').join('');
+  $('outfitSeasonPicker').innerHTML=SEASONS.map(s=>'<div class="chip-opt" data-val="'+s+'" onclick="toggleChip(this)">'+SEASON_EMOJI[s]+s+'</div>').join('');
   $('inspireCatPicker').innerHTML=INSPIRE_CATS.map(c=>'<div class="chip-opt" data-val="'+c+'" onclick="toggleChip(this)">'+c+'</div>').join('');
   $('urlCatPicker').innerHTML=INSPIRE_CATS.map(c=>'<div class="chip-opt" data-val="'+c+'" onclick="toggleChip(this)">'+c+'</div>').join('');
   $('inspireTypePicker').innerHTML=INSPIRE_TYPES.map(c=>'<div class="chip-opt" data-val="'+c+'" onclick="toggleChip(this)">'+c+'</div>').join('');
@@ -1279,7 +1295,7 @@ function openOutfitBuilder(id){
   $('outfitId').value=id||'';
   $('outfitName').value='';
   document.querySelectorAll('#outfitTypePicker .chip-opt').forEach(o=>o.classList.remove('selected'));
-  document.querySelectorAll('#outfitStylePicker .chip-opt').forEach(o=>o.classList.remove('selected'));
+  document.querySelectorAll('#outfitSeasonPicker .chip-opt').forEach(o=>o.classList.remove('selected'));
   $('outfitModalTitle').textContent=id?'编辑搭配':'新建搭配';
   if(id){
     const o=outfits.find(x=>x.id===id);
@@ -1288,7 +1304,7 @@ function openOutfitBuilder(id){
       outfitBuilder={};
       o.items.forEach(itemId=>{const c=getClothing(itemId);if(c)outfitBuilder[c.category]=itemId});
       const te=document.querySelector('#outfitTypePicker [data-val="'+(o.type||'通勤')+'"]');if(te)te.classList.add('selected');
-      (o.style||[]).forEach(s=>{const e=document.querySelector('#outfitStylePicker [data-val="'+s+'"]');if(e)e.classList.add('selected')});
+      (o.season||[]).forEach(s=>{const e=document.querySelector('#outfitSeasonPicker [data-val="'+s+'"]');if(e)e.classList.add('selected')});
     }
   }else{
     const defType=document.querySelector('#outfitTypePicker [data-val="通勤"]');if(defType)defType.classList.add('selected');
@@ -1409,13 +1425,13 @@ function saveOutfit(){
   ['上衣','裤子','裙子','鞋','配饰'].forEach(s=>{if(outfitBuilder[s])itemIds.push(outfitBuilder[s])});
   if(outfitBuilder['外套']&&outfitBuilder['外套'].length>0)itemIds.push(...outfitBuilder['外套']);
   if(itemIds.length===0){toast('请至少选择一件衣物');return}
-  const styles=[...document.querySelectorAll('#outfitStylePicker .chip-opt.selected')].map(o=>o.dataset.val);
+  const seasons=[...document.querySelectorAll('#outfitSeasonPicker .chip-opt.selected')].map(o=>o.dataset.val);
   const typeEl=document.querySelector('#outfitTypePicker .chip-opt.selected');
   if(!typeEl){toast('请选择场景类型(通勤/外出)');return}
   const type=typeEl.dataset.val;
   const name=type+'搭配';
   const id=$('outfitId').value;
-  const data={id:id||uid(),name,items:itemIds,style:styles,type,createdAt:id?(outfits.find(o=>o.id===id)&&outfits.find(o=>o.id===id).createdAt||Date.now()):Date.now()};
+  const data={id:id||uid(),name,items:itemIds,season:seasons,type,createdAt:id?(outfits.find(o=>o.id===id)&&outfits.find(o=>o.id===id).createdAt||Date.now()):Date.now()};
   if(id){const idx=outfits.findIndex(o=>o.id===id);if(idx>=0)outfits[idx]=data}
   else outfits.push(data);
   const res=DB.set(DB.OUTFITS,outfits);
@@ -1442,15 +1458,16 @@ function randomOutfitToSave(){
   $('outfitId').value='';
   $('outfitName').value='';
   document.querySelectorAll('#outfitTypePicker .chip-opt').forEach(o=>o.classList.remove('selected'));
-  document.querySelectorAll('#outfitStylePicker .chip-opt').forEach(o=>o.classList.remove('selected'));
+  document.querySelectorAll('#outfitSeasonPicker .chip-opt').forEach(o=>o.classList.remove('selected'));
   const defType=document.querySelector('#outfitTypePicker [data-val="通勤"]');if(defType)defType.classList.add('selected');
   renderOutfitSlots();
   openModal('outfitModal');
 }
 function renderOutfits(){
+  const getOSeason=o=>o.season||o.seasons||[];
   /* 搭配季节侧栏 */
   const outfitSCounts={};
-  SEASONS.forEach(s=>{outfitSCounts[s]=outfits.filter(o=>(o.seasons||[]).includes(s)).length});
+  SEASONS.forEach(s=>{outfitSCounts[s]=outfits.filter(o=>getOSeason(o).includes(s)).length});
   const allCnt=outfits.length;
   $('outfitSeasonSidebar').innerHTML=[
     {key:'all',icon:'👗',name:'全部',count:allCnt,cls:'si-all'},
@@ -1476,7 +1493,7 @@ function renderOutfits(){
   const container=$('outfitListContainer');
   let filtered=outfits;
   if(currentOutfitSeason!=='all'){
-    filtered=filtered.filter(o=>(o.seasons||[]).includes(currentOutfitSeason));
+    filtered=filtered.filter(o=>getOSeason(o).includes(currentOutfitSeason));
   }
   if(currentOutfitFilter!=='all'){
     filtered=filtered.filter(o=>(o.type||'通勤')===currentOutfitFilter);
@@ -1495,9 +1512,9 @@ function renderOutfitCardV(o){
   const bottom=items.find(c=>c.category==='裤子'||c.category==='裙子');
   const outers=items.filter(c=>c.category==='外套');
   const wornCount=getOutfitWornCount(o.id);
+  const totalPrice=items.reduce((s,c)=>s+(c.price||0),0);
   let html='<div class="outfit-card-v" onclick="openOutfitBuilder(\''+o.id+'\')">';
   html+='<div class="ocv-del" onclick="event.stopPropagation();deleteOutfit(\''+o.id+'\')">&times;</div>';
-  // 上衣在上 下装在下
   html+='<div class="ocv-body">';
   html+='<div class="ocv-top"><div class="ocv-img">';
   if(top&&top.image)html+='<img src="'+top.image+'">';
@@ -1509,7 +1526,6 @@ function renderOutfitCardV(o){
   else html+=imgPh();
   html+='<div class="ocv-label">'+(bottom?bottom.category:'下装')+'</div></div></div>';
   html+='</div>';
-  // 外套叠放(可滑动)
   if(outers.length>0){
     html+='<div class="ocv-outer">';
     outers.forEach(c=>{
@@ -1517,15 +1533,17 @@ function renderOutfitCardV(o){
     });
     html+='</div>';
   }
-  // 汇总季节标签
-  const seasonSet=[];
-  items.forEach(c=>{(c.season||[]).forEach(s=>{if(!seasonSet.includes(s))seasonSet.push(s)})});
+  const oSeason=o.season||o.seasons||[];
+  const seasonSet=oSeason.length?oSeason.slice():[];
+  if(seasonSet.length===0){
+    items.forEach(c=>{(c.season||[]).forEach(s=>{if(!seasonSet.includes(s))seasonSet.push(s)})});
+  }
   const seasonTags=seasonSet.map(s=>'<span class="s-tag">'+(SEASON_EMOJI[s]||'')+s+'</span>').join('');
-  // 信息(无名称)
   html+='<div class="ocv-footer">';
   html+='<div class="ocv-meta">';
   html+='<span>'+items.length+'件</span>';
   html+='<span class="worn-count">穿'+wornCount+'次</span>';
+  if(totalPrice>0)html+='<span class="ocv-price">整套¥'+totalPrice.toFixed(0)+'</span>';
   html+='</div>';
   if(seasonTags)html+='<div class="ocv-seasons">'+seasonTags+'</div>';
   html+='<div class="ocv-actions">';
@@ -2712,7 +2730,7 @@ async function restoreFromDiag(){
 }
 
 /* 版本号：每次推送代码更新时改这个值，浏览器检测到变化会自动刷新清缓存 */
-const APP_VERSION='20260813c';
+const APP_VERSION='20260813d';
 /* 启动时检查版本，若 localStorage 里记录的版本不一致则强制刷新(带随机参数破缓存) */
 (function checkVersion(){
   try{
