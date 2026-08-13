@@ -126,11 +126,21 @@ button{cursor:pointer;border:none;background:none}
 #page-wardrobe .wardrobe-body{flex:1 1 auto;min-height:0;overflow:hidden;margin-top:0}
 #page-wardrobe .wardrobe-body .season-sidebar{position:static;top:auto;max-height:none;height:100%}
 #page-wardrobe .wardrobe-body .wardrobe-main{flex:1;min-width:0;overflow-y:auto;height:100%;padding-right:0}
-#page-wardrobe .wardrobe-body .wardrobe-main .chip-bar{padding:10px 12px 8px;position:sticky;top:0;background:var(--bg);z-index:1}
 #page-wardrobe .wardrobe-body .wardrobe-main .clothes-grid{padding:0 12px 16px}
-#page-wardrobe .wardrobe-body .wardrobe-main .outfit-filter-bar{padding:4px 12px 10px;position:sticky;top:0;background:var(--bg);z-index:1}
 #page-wardrobe .wardrobe-body .wardrobe-main .outfit-grid{padding:0 12px 16px}
-#page-wardrobe .wardrobe-body .wardrobe-main > div:first-child:not(.outfit-filter-bar):not(.chip-bar){padding:8px 12px}
+#page-wardrobe .wardrobe-body .wardrobe-main > div:first-child:not(.outfit-filter-bar):not(.chip-bar):not(.filter-sticky-top){padding:8px 12px}
+
+/* 统一 filter sticky:chip bar + summary 一起粘住 */
+.filter-sticky-top{position:sticky;top:0;background:var(--bg);z-index:1}
+#page-wardrobe .wardrobe-body .wardrobe-main .chip-bar{padding:10px 12px 4px}
+#page-wardrobe .wardrobe-body .wardrobe-main .outfit-filter-bar{padding:4px 12px}
+
+/* summary 条:当前筛选下的件数和价格合计 */
+.summary-strip{display:flex;align-items:center;justify-content:space-between;padding:4px 14px 8px;font-size:12px;background:var(--bg)}
+.summary-strip .ss-left{display:flex;align-items:center;gap:10px;color:var(--text-light)}
+.summary-strip .ss-count{color:var(--caramel);font-weight:600}
+.summary-strip .ss-total{color:var(--orange);font-weight:700;font-size:15px;letter-spacing:0.4px}
+.summary-strip .ss-total::before{content:"合计";font-size:10px;color:var(--text-light);font-weight:500;margin-right:4px}
 
 /* 搭配卡片整套价格 */
 .outfit-card-v .ocv-meta .ocv-price{color:var(--orange);font-weight:700;margin-left:auto;background:rgba(232,108,47,0.1);padding:0 5px;border-radius:10px}
@@ -451,7 +461,10 @@ button{cursor:pointer;border:none;background:none}
     <div class="wardrobe-body">
       <div class="season-sidebar" id="seasonSidebar"></div>
       <div class="wardrobe-main">
-        <div class="chip-bar" id="categoryChips"></div>
+        <div class="filter-sticky-top">
+          <div class="chip-bar" id="categoryChips"></div>
+          <div class="summary-strip" id="wardrobeSummary"></div>
+        </div>
         <div class="clothes-grid" id="clothesGrid"></div>
       </div>
     </div>
@@ -460,11 +473,14 @@ button{cursor:pointer;border:none;background:none}
     <div class="wardrobe-body">
       <div class="season-sidebar" id="outfitSeasonSidebar"></div>
       <div class="wardrobe-main">
-        <div style="padding:8px 8px;display:flex;gap:8px">
-          <button class="btn btn-primary btn-sm" onclick="openOutfitBuilder()">+ 新建搭配</button>
-          <button class="btn btn-cream btn-sm" onclick="randomOutfitToSave()">随机生成</button>
+        <div class="filter-sticky-top">
+          <div style="padding:4px 8px 4px;display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" onclick="openOutfitBuilder()">+ 新建搭配</button>
+            <button class="btn btn-cream btn-sm" onclick="randomOutfitToSave()">随机生成</button>
+          </div>
+          <div class="outfit-filter-bar" id="outfitFilterBar"></div>
+          <div class="summary-strip" id="outfitSummary"></div>
         </div>
-        <div class="outfit-filter-bar" id="outfitFilterBar"></div>
         <div id="outfitListContainer"></div>
       </div>
     </div>
@@ -481,7 +497,10 @@ button{cursor:pointer;border:none;background:none}
     <button class="btn btn-primary btn-sm" onclick="openCollectionModal()">+ 添加物品</button>
     <button class="btn btn-cream btn-sm" onclick="openCollectionCatManager()">⚙️ 管理分类</button>
   </div>
-  <div class="collection-cat-bar" id="collectionCatBar"></div>
+  <div class="filter-sticky-top">
+    <div class="collection-cat-bar" id="collectionCatBar"></div>
+    <div class="summary-strip" id="collectionSummary"></div>
+  </div>
   <div id="collectionContainer"></div>
 </div>
 
@@ -1046,6 +1065,7 @@ function openModal(id){$(id).classList.add('show')}
 function closeModal(id){$(id).classList.remove('show')}
 function getClothing(id){return clothes.find(c=>c.id===id)}
 function escapeHtml(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+function fmtMoney(n){if(!n)return '0';const s=String(Math.round(n));return s.replace(/\B(?=(\d{3})+(?!\d))/g,',')}
 function fmtDate(d){const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),da=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+da}
 function imgPh(){return '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%"><svg width="40" height="40" viewBox="0 0 24 24" fill="rgba(53,46,42,0.15)"><path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></div>'}
 
@@ -1158,6 +1178,11 @@ function renderClothes(){
     const tb=b.buyDate?new Date(b.buyDate).getTime():0;
     return tb-ta;
   });
+  /* summary 条:当前筛选下件数+价格合计 */
+  const wSum=filtered.reduce((s,c)=>s+(c.price||0),0);
+  const activeLabel=currentCategory||currentWardrobeSeason==='all'?'全部':
+    (currentWardrobeSeason==='all'?currentCategory:currentCategory+' / '+currentWardrobeSeason);
+  $('wardrobeSummary').innerHTML='<div class="ss-left"><span>"'+activeLabel+'"筛选</span><span class="ss-count">'+filtered.length+' 件</span></div><div class="ss-total">¥'+fmtMoney(wSum)+'</div>';
   if(filtered.length===0){
     grid.innerHTML='<div class="empty" style="grid-column:1/-1"><svg width="56" height="56" viewBox="0 0 24 24" fill="var(--text-light)"><path d="M20.38 3.46L16 2a4 4 0 0 0-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84h.42l-.92 8.65A2 2 0 0 0 5.36 21h13.28a2 2 0 0 0 1.99-2.35l-.92-8.65h.42a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.32-2.23z"/></svg><p>'+(clothes.length===0?'衣橱还是空的':'没有匹配的衣物')+'</p><p class="hint">'+(clothes.length===0?'点击底部+添加衣物':'试试调整搜索或筛选')+'</p></div>';
     return;
@@ -1498,6 +1523,13 @@ function renderOutfits(){
   if(currentOutfitFilter!=='all'){
     filtered=filtered.filter(o=>(o.type||'通勤')===currentOutfitFilter);
   }
+  /* summary:当前筛选下搭配套数 + 单品件数 + 单品总花费 */
+  let oSum=0,oItemCnt=0;
+  filtered.forEach(o=>{
+    o.items.forEach(id=>{const c=getClothing(id);if(c){oSum+=(c.price||0);oItemCnt++}});
+  });
+  const oLabel=(currentOutfitFilter==='all'?'全部':currentOutfitFilter)+(currentOutfitSeason!=='all'?' / '+currentOutfitSeason:'');
+  $('outfitSummary').innerHTML='<div class="ss-left"><span>"'+oLabel+'"筛选</span><span class="ss-count">'+filtered.length+' 套 · '+oItemCnt+' 件</span></div><div class="ss-total">¥'+fmtMoney(oSum)+'</div>';
   if(filtered.length===0){
     container.innerHTML='<div class="empty"><svg width="56" height="56" viewBox="0 0 24 24" fill="var(--text-light)"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg><p>'+(outfits.length===0?'还没有保存的搭配':'没有符合条件的搭配')+'</p><p class="hint">'+(outfits.length===0?'点击"新建搭配"创建':'试试切换季节或场景')+'</p></div>';
     return;
@@ -2245,6 +2277,10 @@ function renderCollections(){
   let filtered=collections.slice();
   if(currentCollectionTab!=='all')filtered=filtered.filter(x=>x.category===currentCollectionTab);
   filtered.sort((a,b)=>(b.buyDate||'').localeCompare(a.buyDate||''));
+  /* summary:当前分类下物品件数+价格合计 */
+  const cSum=filtered.reduce((s,x)=>s+(x.price||0),0);
+  const activeCat=currentCollectionTab==='all'?'全部':(getCollectionCat(currentCollectionTab)||{name:'未知'}).name;
+  $('collectionSummary').innerHTML='<div class="ss-left"><span>"'+activeCat+'"筛选</span><span class="ss-count">'+filtered.length+' 件</span></div><div class="ss-total">¥'+fmtMoney(cSum)+'</div>';
   const container=$('collectionContainer');
   if(filtered.length===0){
     container.innerHTML='<div class="collection-empty">'+
@@ -2730,7 +2766,7 @@ async function restoreFromDiag(){
 }
 
 /* 版本号：每次推送代码更新时改这个值，浏览器检测到变化会自动刷新清缓存 */
-const APP_VERSION='20260813d';
+const APP_VERSION='20260813e';
 /* 启动时检查版本，若 localStorage 里记录的版本不一致则强制刷新(带随机参数破缓存) */
 (function checkVersion(){
   try{
