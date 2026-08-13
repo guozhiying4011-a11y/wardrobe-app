@@ -116,7 +116,7 @@ button{cursor:pointer;border:none;background:none}
 
 /* 衣橱左右分栏布局 */
 .wardrobe-body{display:flex;gap:0;padding:0;margin-top:8px}
-.season-sidebar{flex:0 0 72px;background:rgba(255,255,255,0.55);backdrop-filter:blur(10px);border-right:1px solid rgba(53,46,42,0.05);padding:14px 0;display:flex;flex-direction:column;gap:2px;position:sticky;top:8px;max-height:calc(100vh - 180px);overflow-y:auto}
+.season-sidebar{flex:0 0 56px;background:rgba(255,255,255,0.55);backdrop-filter:blur(10px);border-right:1px solid rgba(53,46,42,0.05);padding:14px 0;display:flex;flex-direction:column;gap:2px;position:sticky;top:8px;max-height:calc(100vh - 180px);overflow-y:auto}
 .season-sidebar::-webkit-scrollbar{display:none}
 
 /* 衣橱页整体flex容器:header和sub-tabs固定,仅右侧内容区滚动 */
@@ -126,7 +126,7 @@ button{cursor:pointer;border:none;background:none}
 #page-wardrobe > #view-clothes,
 #page-wardrobe > #view-outfits{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column}
 #page-wardrobe .wardrobe-body{flex:1 1 auto;min-height:0;overflow:hidden;margin-top:0}
-#page-wardrobe .wardrobe-body .season-sidebar{position:static;top:auto;max-height:none;height:100%;flex:0 0 72px}
+#page-wardrobe .wardrobe-body .season-sidebar{position:static;top:auto;max-height:none;height:100%;flex:0 0 56px}
 #page-wardrobe .wardrobe-body .wardrobe-main{flex:1;min-width:0;overflow-y:auto;height:100%;padding-right:0}
 #page-wardrobe .wardrobe-body .wardrobe-main .clothes-grid{padding:0 12px 16px}
 #page-wardrobe .wardrobe-body .wardrobe-main .outfit-grid{padding:0 12px 16px}
@@ -1208,24 +1208,19 @@ function renderClothes(){
     return;
   }
   grid.innerHTML=filtered.map(c=>{
-    const colorObj=COLORS.find(co=>co.n===c.color);
     const wornCount=getWornCount(c.id);
     const ageStr=getBuyAge(c.buyDate);
     const seasonTags=(c.season||[]).map(s=>'<span class="badge-season">'+(SEASON_EMOJI[s]||'')+s+'</span>').join('');
+    const bits=[];if(ageStr)bits.push(ageStr);bits.push(wornCount>0?'穿'+wornCount+'次':'未穿过');const tail=bits.join(' · ');
     return '<div class="clothing-card" onclick="editClothing(\''+c.id+'\')">'+
       '<div class="photo">'+(c.image?'<img src="'+c.image+'">':'<div class="ph">'+imgPh()+'</div>')+
-        '<div class="badge">'+c.category+'</div>'+
         (seasonTags?'<div class="badge-seasons">'+seasonTags+'</div>':'')+
       '</div>'+
       '<div class="info">'+
         '<div class="name">'+escapeHtml(c.name)+'</div>'+
         '<div class="meta">'+
-          '<span class="cat">'+((c.brand||c.category))+'</span>'+
+          '<span class="cat">'+tail+'</span>'+
           (c.price?'<span class="price">¥'+c.price+'</span>':'')+
-        '</div>'+
-        '<div class="meta2">'+
-          (ageStr?'<span class="age">'+ageStr+'</span>':'')+
-          (wornCount>0?'<span class="worn">穿过'+wornCount+'次</span>':'<span>未穿过</span>')+
         '</div>'+
       '</div>'+
     '</div>';
@@ -2423,10 +2418,11 @@ function renderCollectionCard(it){
   html+='<div class="cc-info">';
   html+='<div class="cc-name">'+escapeHtml(it.name)+'</div>';
   html+='<div class="cc-meta">';
+  const colAge=getBuyAge(it.buyDate);
   html+='<span class="cc-brand">'+(it.brand?escapeHtml(it.brand):catName)+'</span>';
   if(it.price>0)html+='<span class="cc-price">¥'+it.price+'</span>';
   html+='</div>';
-  if(it.buyDate)html+='<div class="cc-date">'+it.buyDate+'</div>';
+  if(colAge)html+='<div class="cc-date">'+colAge+'</div>';
   html+='</div></div>';
   return html;
 }
@@ -2681,8 +2677,7 @@ function showSpendDetail(type,off){
       const dateStr=c.buyDate?new Date(c.buyDate).toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'}):'';
       let thumb,metaExtra,editFn;
       if(it.type==='clothes'){
-        const colorObj=COLORS.find(co=>co.n===c.color);
-        thumb=c.image?'<img src="'+c.image+'">':'<div class="sd-ph">'+imgPh()+'</div>';
+            thumb=c.image?'<img src="'+c.image+'">':'<div class="sd-ph">'+imgPh()+'</div>';
         metaExtra='<span>'+c.category+'</span>'+
           (c.color?'<span style="width:10px;height:10px;border-radius:50%;background:'+(colorObj?colorObj.h:'#888')+';border:1px solid rgba(0,0,0,0.1)"></span><span>'+c.color+'</span>':'')+
           (c.brand?'<span>'+escapeHtml(c.brand)+'</span>':'')+
@@ -2930,7 +2925,7 @@ async function restoreFromDiag(){
 }
 
 /* 版本号：每次推送代码更新时改这个值，浏览器检测到变化会自动刷新清缓存 */
-const APP_VERSION='20260814a';
+const APP_VERSION='20260814b';
 /* 启动时检查版本，若 localStorage 里记录的版本不一致则强制刷新(带随机参数破缓存) */
 (function checkVersion(){
   try{
