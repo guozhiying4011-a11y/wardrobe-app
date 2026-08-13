@@ -163,23 +163,21 @@ button{cursor:pointer;border:none;background:none}
 .wardrobe-main .chip-bar{padding:8px 8px}
 .wardrobe-main .clothes-grid{padding:0 8px}
 
-.clothes-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding:0 20px}
-.clothing-card{background:var(--card);border-radius:var(--radius-sm);overflow:hidden;box-shadow:var(--shadow);position:relative;transition:transform .2s}
+.clothes-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 20px}
+.clothing-card{background:var(--card);border-radius:var(--radius-xs);overflow:hidden;box-shadow:var(--shadow);position:relative;transition:transform .2s}
 .clothing-card:active{transform:scale(0.97)}
 .clothing-card .photo{width:100%;aspect-ratio:3/4;background:var(--cream);overflow:hidden;position:relative}
 .clothing-card .photo img{width:100%;height:100%;object-fit:cover;display:block}
 .clothing-card .photo .ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
-.clothing-card .badge{position:absolute;top:8px;left:8px;background:rgba(53,46,42,0.7);color:#fff;font-size:10px;padding:3px 8px;border-radius:20px;backdrop-filter:blur(4px)}
-.clothing-card .badge-seasons{position:absolute;bottom:8px;left:8px;display:flex;gap:3px;flex-wrap:wrap}
-.clothing-card .badge-season{font-size:9px;padding:2px 6px;border-radius:20px;background:rgba(255,255,255,0.85);color:var(--text-dark);backdrop-filter:blur(4px)}
-.clothing-card .info{padding:10px}
-.clothing-card .name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.clothing-card .meta{display:flex;align-items:center;gap:6px;margin-top:4px}
-.clothing-card .meta .cat{font-size:11px;color:var(--text-light);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.clothing-card .meta .price{font-size:13px;color:var(--orange);font-weight:700;padding:2px 8px;border-radius:20px;background:rgba(232,108,47,0.1);flex:0 0 auto;letter-spacing:0.3px}
-.clothing-card .meta2{display:flex;align-items:center;gap:8px;margin-top:3px;font-size:10px;color:var(--text-light)}
-.clothing-card .meta2 .worn{color:var(--caramel);font-weight:600}
-.clothing-card .meta2 .age{color:var(--text-light)}
+.clothing-card .badge{position:absolute;top:4px;left:4px;background:rgba(53,46,42,0.7);color:#fff;font-size:8px;padding:2px 5px;border-radius:20px;backdrop-filter:blur(4px)}
+.clothing-card .badge-seasons{position:absolute;bottom:4px;left:4px;display:flex;gap:2px;flex-wrap:wrap}
+.clothing-card .badge-season{font-size:8px;padding:1px 4px;border-radius:20px;background:rgba(255,255,255,0.85);color:var(--text-dark);backdrop-filter:blur(4px)}
+.clothing-card .info{padding:6px 6px 8px}
+.clothing-card .name{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clothing-card .meta{display:flex;align-items:center;gap:4px;margin-top:2px}
+.clothing-card .meta .cat{font-size:9px;color:var(--text-light);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clothing-card .meta .price{font-size:11px;color:var(--orange);font-weight:700;padding:1px 5px;border-radius:10px;background:rgba(232,108,47,0.1);flex:0 0 auto;letter-spacing:0.2px}
+.clothing-card .meta2{display:none}
 
 .sub-tabs{display:flex;gap:0;padding:0 20px;margin-bottom:12px;border-bottom:2px solid var(--cream)}
 .sub-tab{padding:10px 16px;font-size:14px;font-weight:600;color:var(--text-light);position:relative;transition:color .2s}
@@ -596,8 +594,8 @@ button{cursor:pointer;border:none;background:none}
 <div class="tabbar">
   <div class="tabbar-inner">
     <div class="tab active" data-page="home" onclick="switchTab('home',this)"><svg class="ticon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><span>首页</span></div>
-    <div class="tab" data-page="wardrobe" onclick="switchTab('wardrobe',this)"><svg class="ticon" viewBox="0 0 24 24"><path d="M20.38 3.46L16 2a4 4 0 0 0-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84h.42l-.92 8.65A2 2 0 0 0 5.36 21h13.28a2 2 0 0 0 1.99-2.35l-.92-8.65h.42a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.32-2.23zM12 4a2 2 0 0 1 2 2h-4a2 2 0 0 1 2-2z"/></svg><span>衣橱</span></div>
     <div class="tab" data-page="collections" onclick="switchTab('collections',this)"><svg class="ticon" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-9 13H7v-4h4v4zm0-6H7V7h4v4zm6 6h-4v-4h4v4zm0-6h-4V7h4v4z"/></svg><span>物品</span></div>
+    <div class="tab" data-page="wardrobe" onclick="switchTab('wardrobe',this)"><svg class="ticon" viewBox="0 0 24 24"><path d="M20.38 3.46L16 2a4 4 0 0 0-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84h.42l-.92 8.65A2 2 0 0 0 5.36 21h13.28a2 2 0 0 0 1.99-2.35l-.92-8.65h.42a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.32-2.23zM12 4a2 2 0 0 1 2 2h-4a2 2 0 0 1 2-2z"/></svg><span>衣橱</span></div>
     <div class="tab" data-page="inspire" onclick="switchTab('inspire',this)"><svg class="ticon" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zm0 9L4.5 7.5 12 4.5l7.5 3L12 11zm0 3L2 9v9l10 5 10-5V9l-10 5z"/></svg><span>收藏</span></div>
     <div class="tab" data-page="profile" onclick="switchTab('profile',this)"><svg class="ticon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span>我的</span></div>
   </div>
@@ -743,11 +741,7 @@ button{cursor:pointer;border:none;background:none}
     <div id="catManagerList" style="padding:4px 0;max-height:40vh;overflow-y:auto"></div>
     <div class="cat-add-row" style="display:flex;gap:8px;padding:12px 0 6px;border-top:1px solid var(--cream-dark);margin-top:4px">
       <input type="text" id="newCatName" class="form-input" placeholder="新分类名称 (如:耳机)" style="flex:1" maxlength="8">
-      <select id="newCatIcon" class="form-select" style="width:68px;padding:0 4px">
-        <option>👜</option><option>💍</option><option>💄</option><option>📱</option><option>🏠</option>
-        <option>⌚</option><option>⚽</option><option>👟</option><option>🎧</option><option>📚</option>
-        <option>🌸</option><option>🍵</option><option>✨</option><option>🎁</option><option>🎨</option>
-      </select>
+      <input type="text" id="newCatIcon" class="form-input" placeholder="图标" style="width:56px;text-align:center;padding:0 4px;font-size:18px" maxlength="4">
       <button class="btn btn-primary btn-sm" onclick="addCollectionCat()">+</button>
     </div>
     <div class="form-actions"><button class="btn btn-cream" onclick="resetCollectionCats()">恢复默认</button><button class="btn btn-primary" onclick="closeModal('collectionCatModal')">完成</button></div>
@@ -2190,7 +2184,7 @@ function openCollectionModal(id){
   const currentCat=id?(collections.find(x=>x.id===id)||{}).category:defaultCat;
   /* 渲染品类 picker */
   $('collectionCatPicker').innerHTML=collectionCats.map(c=>
-    '<div class="chip-opt '+(currentCat===c.id?'selected':'')+'" data-val="'+c.id+'" onclick="selectChip(this)">'+c.icon+' '+c.name+'</div>'
+    '<div class="chip-opt '+(currentCat===c.id?'selected':'')+'" data-val="'+c.id+'" onclick="selectChip(this)">'+(c.icon?c.icon+' ':'')+c.name+'</div>'
   ).join('');
   if(id){
     const it=collections.find(x=>x.id===id);
@@ -2272,7 +2266,7 @@ function renderCollections(){
   const allCnt=collections.length;
   let barHtml='<div class="collection-cat-chip '+(currentCollectionTab==='all'?'active':'')+'" onclick="setCollectionTab(\'all\')">全部<span class="cnt">'+allCnt+'</span></div>';
   collectionCats.forEach(c=>{
-    barHtml+='<div class="collection-cat-chip '+(currentCollectionTab===c.id?'active':'')+'" onclick="setCollectionTab(\''+c.id+'\')">'+c.icon+' '+c.name+'<span class="cnt">'+counts[c.id]+'</span></div>';
+    barHtml+='<div class="collection-cat-chip '+(currentCollectionTab===c.id?'active':'')+'" onclick="setCollectionTab(\''+c.id+'\')">'+(c.icon?c.icon+' ':'')+c.name+'<span class="cnt">'+counts[c.id]+'</span></div>';
   });
   $('collectionCatBar').innerHTML=barHtml;
   /* 过滤 */
@@ -2297,7 +2291,7 @@ function renderCollections(){
     collectionCats.forEach(c=>{
       const group=collections.filter(x=>x.category===c.id).sort((a,b)=>(b.buyDate||'').localeCompare(a.buyDate||''));
       if(group.length===0)return;
-      html+='<div class="collection-group-title"><span class="cg-icon">'+c.icon+'</span><span class="cg-name">'+c.name+'</span><span class="cg-cnt">'+group.length+'件</span></div>';
+      html+='<div class="collection-group-title">'+(c.icon?'<span class="cg-icon">'+c.icon+'</span>':'')+'<span class="cg-name">'+c.name+'</span><span class="cg-cnt">'+group.length+'件</span></div>';
       html+='<div class="collection-grid">'+group.map(renderCollectionCard).join('')+'</div>';
     });
     container.innerHTML=html;
@@ -2335,7 +2329,7 @@ function renderCatManager(){
   let html='';
   collectionCats.forEach(c=>{
     html+='<div class="cat-mgr-item">'+
-      '<div class="cmi-icon">'+c.icon+'</div>'+
+      (c.icon?'<div class="cmi-icon">'+c.icon+'</div>':'')+
       '<div class="cmi-name">'+escapeHtml(c.name)+'</div>'+
       '<div class="cmi-cnt">'+(counts[c.id]||0)+'项</div>'+
       '<div class="cmi-del" onclick="removeCollectionCat(\''+c.id+'\')" title="删除">×</div>'+
@@ -2768,7 +2762,7 @@ async function restoreFromDiag(){
 }
 
 /* 版本号：每次推送代码更新时改这个值，浏览器检测到变化会自动刷新清缓存 */
-const APP_VERSION='20260813f';
+const APP_VERSION='20260813g';
 /* 启动时检查版本，若 localStorage 里记录的版本不一致则强制刷新(带随机参数破缓存) */
 (function checkVersion(){
   try{
