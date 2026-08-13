@@ -247,6 +247,24 @@ button{cursor:pointer;border:none;background:none}
 .cat-mgr-item .cmi-cnt{font-size:11px;color:var(--text-light);margin-right:4px}
 .cat-mgr-item .cmi-del{width:26px;height:26px;border-radius:50%;background:rgba(231,76,60,0.1);color:#e74c3c;display:flex;align-items:center;justify-content:center;font-size:14px;transition:transform .15s}
 .cat-mgr-item .cmi-del:active{transform:scale(0.85);background:rgba(231,76,60,0.2)}
+/* 子分类 chip bar */
+.subcat-bar{display:flex;gap:6px;padding:4px 14px 8px;overflow-x:auto;scrollbar-width:none;background:var(--bg)}
+.subcat-bar::-webkit-scrollbar{display:none}
+.subcat-chip{flex:0 0 auto;padding:4px 10px;border-radius:14px;background:var(--cream);color:var(--text-mid);font-size:11px;font-weight:600;white-space:nowrap;transition:all .15s;display:flex;align-items:center;gap:4px}
+.subcat-chip.active{background:var(--orange);color:#fff}
+.subcat-chip .cnt{font-size:9px;opacity:.7}
+
+.cat-mgr-item .cmi-expand{font-size:14px;color:var(--text-light);padding:0 4px;cursor:pointer;transition:transform .2s}
+.cat-mgr-item.open .cmi-expand{transform:rotate(90deg)}
+.cat-mgr-sub{padding:4px 4px 8px 42px;font-size:12px;color:var(--text-mid);display:none}
+.cat-mgr-sub.open{display:block}
+.cat-mgr-sub .sub-row{display:flex;align-items:center;gap:6px;padding:4px 0}
+.cat-mgr-sub .sub-row .sr-name{flex:1}
+.cat-mgr-sub .sub-row .sr-cnt{font-size:10px;color:var(--text-light)}
+.cat-mgr-sub .sub-row .sr-del{font-size:14px;color:#e74c3c;cursor:pointer;padding:2px 4px}
+.cat-mgr-sub .sub-add{display:flex;gap:6px;margin-top:6px}
+.cat-mgr-sub .sub-add input{flex:1;padding:4px 8px;border:1px solid var(--cream-dark);border-radius:8px;font-size:12px;background:var(--bg)}
+
 
 /* 物品页 tabbar 5个平分布局时 */
 .tabbar-inner .tab{flex:1}
@@ -1014,23 +1032,28 @@ const SEASON_EMOJI={春:'🌸',夏:'☀️',秋:'🍂',冬:'❄️'};
 const INSPIRE_CATS=['通勤','外出'];
 const INSPIRE_TYPES=['上衣','裤子','裙子','外套','套装','其他'];
 const DEFAULT_COLLECTION_CATS=[
-  {id:'bag',icon:'👜',name:'包袋'},
-  {id:'jewelry',icon:'💍',name:'饰品'},
-  {id:'beauty',icon:'💄',name:'美妆'},
-  {id:'digital',icon:'📱',name:'数码'},
-  {id:'home',icon:'🏠',name:'家居'},
-  {id:'watch',icon:'⌚',name:'手表'},
-  {id:'sports',icon:'⚽',name:'运动'},
-  {id:'other',icon:'✨',name:'其他'},
+  {id:'bag',icon:'👜',name:'包袋',children:[]},
+  {id:'jewelry',icon:'💍',name:'饰品',children:[]},
+  {id:'beauty',icon:'💄',name:'美妆',children:[]},
+  {id:'digital',icon:'📱',name:'数码',children:[]},
+  {id:'home',icon:'🏠',name:'家居',children:[]},
+  {id:'watch',icon:'⌚',name:'手表',children:[]},
+  {id:'sports',icon:'⚽',name:'运动',children:[]},
+  {id:'other',icon:'✨',name:'其他',children:[]},
 ];
 let collectionCats=JSON.parse(JSON.stringify(DEFAULT_COLLECTION_CATS));
 function loadCollectionCats(){
   const saved=DB.get(DB.COLLECTION_CATS,null);
-  if(Array.isArray(saved)&&saved.length>0){collectionCats=saved}else{collectionCats=JSON.parse(JSON.stringify(DEFAULT_COLLECTION_CATS))}
+  if(Array.isArray(saved)&&saved.length>0){
+    /* 兼容老数据:补 children 字段 */
+    collectionCats=saved.map(c=>({...c,children:Array.isArray(c.children)?c.children:[]}));
+  }else{collectionCats=JSON.parse(JSON.stringify(DEFAULT_COLLECTION_CATS))}
 }
 function saveCollectionCats(){DB.set(DB.COLLECTION_CATS,collectionCats)}
 function genCatId(){return 'cat_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6)}
+function genSubId(){return 'sub_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6)}
 function getCollectionCat(id){return collectionCats.find(c=>c.id===id)||collectionCats[collectionCats.length-1]}
+function getSubcatsOfCat(catId){const c=getCollectionCat(catId);return c&&Array.isArray(c.children)?c.children:[]}
 
 let clothes=[];
 let outfits=[];
@@ -1048,6 +1071,7 @@ let currentInspireMonth='all'; /* 'all' 或 'YYYY-MM' */
 let currentOutfitFilter='all';
 let homeOutfitFilter='all';
 let currentCollectionTab='all'; /* 'all' 或 collectionCats[i].id */
+let currentCollectionSubcat='all'; /* 'all' 或 子分类id,仅当currentCollectionTab!=='all'时有意义 */
 let outfitBuilder={};
 let recordBuilder={};      // 记录弹窗"自由选单品"模式下的 builder
 let pickerContext='outfit'; // 'outfit' | 'record' - pickerModal 当前写入的 builder
@@ -2181,11 +2205,21 @@ function openCollectionModal(id){
   renderCollectionPhotoUpload(null);
   /* 默认选中当前 filter 的品类 */
   const defaultCat=currentCollectionTab==='all'?collectionCats[0].id:currentCollectionTab;
-  const currentCat=id?(collections.find(x=>x.id===id)||{}).category:defaultCat;
+  const existing=id?(collections.find(x=>x.id===id)||{}):null;
+  const currentCat=existing?existing.category:defaultCat;
+  const currentSubcat=existing?(existing.subcat||''):'all';
   /* 渲染品类 picker */
-  $('collectionCatPicker').innerHTML=collectionCats.map(c=>
-    '<div class="chip-opt '+(currentCat===c.id?'selected':'')+'" data-val="'+c.id+'" onclick="selectChip(this)">'+(c.icon?c.icon+' ':'')+c.name+'</div>'
-  ).join('');
+  let pickerHtml='';
+  collectionCats.forEach(c=>{
+    pickerHtml+='<div class="chip-opt '+(currentCat===c.id?'selected':'')+'" data-val="'+c.id+'" data-is-sub="0" onclick="selectCatPickerChip(this)">'+(c.icon?c.icon+' ':'')+c.name+'</div>';
+    const subs=Array.isArray(c.children)?c.children:[];
+    if(subs.length>0){
+      subs.forEach(sub=>{
+        pickerHtml+='<div class="chip-opt ccp-sub '+(currentCat===c.id&&currentSubcat===sub.id?'selected':'')+'" data-val="'+sub.id+'" data-parent="'+c.id+'" data-is-sub="1" onclick="selectCatPickerChip(this)">↳ '+escapeHtml(sub.name)+'</div>';
+      });
+    }
+  });
+  $('collectionCatPicker').innerHTML=pickerHtml;
   if(id){
     const it=collections.find(x=>x.id===id);
     if(it){
@@ -2218,17 +2252,31 @@ function handleCollectionPhoto(e){
   r.readAsDataURL(f);
   e.target.value='';
 }
+function selectCatPickerChip(el){
+  document.querySelectorAll('#collectionCatPicker .chip-opt').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+}
 function saveCollectionItem(){
   try{
     const name=$('collectionItemName').value.trim();
     if(!name){toast('请填写物品名称');return}
     const catChip=$('#collectionCatPicker .chip-opt.selected');
-    const category=catChip?catChip.dataset.val:(currentCollectionTab==='all'?collectionCats[0].id:currentCollectionTab);
+    let category, subcat='';
+    if(catChip){
+      category=catChip.dataset.val;
+      if(catChip.dataset.isSub==='1'){
+        category=catChip.dataset.parent;
+        subcat=catChip.dataset.val;
+      }
+    }else{
+      category=currentCollectionTab==='all'?collectionCats[0].id:currentCollectionTab;
+    }
     const id=$('collectionItemId').value;
     const data={
       id:id||uid(),
       name,
       category,
+      subcat,
       brand:$('collectionItemBrand').value.trim(),
       price:parseFloat($('collectionItemPrice').value)||0,
       buyDate:$('collectionItemDate').value||null,
@@ -2258,7 +2306,8 @@ function deleteCollectionItem(id){
   renderCollections();toast('已删除');
 }
 function editCollectionItem(id){openCollectionModal(id)}
-function setCollectionTab(tab){currentCollectionTab=tab;renderCollections()}
+function setCollectionTab(tab){currentCollectionTab=tab;currentCollectionSubcat='all';renderCollections()}
+function setCollectionSubcat(id){currentCollectionSubcat=id;renderCollections()}
 function renderCollections(){
   /* 分类栏 */
   const counts={};
@@ -2269,14 +2318,54 @@ function renderCollections(){
     barHtml+='<div class="collection-cat-chip '+(currentCollectionTab===c.id?'active':'')+'" onclick="setCollectionTab(\''+c.id+'\')">'+(c.icon?c.icon+' ':'')+c.name+'<span class="cnt">'+counts[c.id]+'</span></div>';
   });
   $('collectionCatBar').innerHTML=barHtml;
+
+  /* 子分类栏:仅当选中了某个父分类且它有children才显示 */
+  let subBar=$('subcatBar');
+  if(currentCollectionTab!=='all'){
+    const cat=getCollectionCat(currentCollectionTab);
+    const subs=cat&&Array.isArray(cat.children)?cat.children:[];
+    if(subs.length>0){
+      const subCounts={};
+      subs.forEach(s=>{subCounts[s.id]=collections.filter(x=>x.category===cat.id&&x.subcat===s.id).length});
+      const parentCnt=counts[cat.id]||0;
+      let sbHtml='<div class="subcat-chip '+(currentCollectionSubcat==='all'?'active':'')+'" onclick="setCollectionSubcat(\'all\')">全部<span class="cnt">'+parentCnt+'</span></div>';
+      subs.forEach(s=>{
+        sbHtml+='<div class="subcat-chip '+(currentCollectionSubcat===s.id?'active':'')+'" onclick="setCollectionSubcat(\''+s.id+'\')">'+escapeHtml(s.name)+'<span class="cnt">'+subCounts[s.id]+'</span></div>';
+      });
+      if(!subBar){
+        subBar=document.createElement('div');
+        subBar.className='subcat-bar';
+        subBar.id='subcatBar';
+        $('collectionCatBar').parentNode.insertBefore(subBar,$('collectionSummary'));
+      }
+      subBar.innerHTML=sbHtml;
+      subBar.style.display='flex';
+    }else if(subBar){
+      subBar.style.display='none';
+    }
+  }else if(subBar){
+    subBar.style.display='none';
+  }
+
   /* 过滤 */
   let filtered=collections.slice();
-  if(currentCollectionTab!=='all')filtered=filtered.filter(x=>x.category===currentCollectionTab);
+  if(currentCollectionTab!=='all'){
+    filtered=filtered.filter(x=>x.category===currentCollectionTab);
+    if(currentCollectionSubcat!=='all')filtered=filtered.filter(x=>x.subcat===currentCollectionSubcat);
+  }
   filtered.sort((a,b)=>(b.buyDate||'').localeCompare(a.buyDate||''));
-  /* summary:当前分类下物品件数+价格合计 */
+
+  /* summary */
   const cSum=filtered.reduce((s,x)=>s+(x.price||0),0);
   const activeCat=currentCollectionTab==='all'?'全部':(getCollectionCat(currentCollectionTab)||{name:'未知'}).name;
-  $('collectionSummary').innerHTML='<div class="ss-left"><span>"'+activeCat+'"筛选</span><span class="ss-count">'+filtered.length+' 件</span></div><div class="ss-total">¥'+fmtMoney(cSum)+'</div>';
+  let label='"'+activeCat+'"筛选';
+  if(currentCollectionTab!=='all'&&currentCollectionSubcat!=='all'){
+    const cat=getCollectionCat(currentCollectionTab);
+    const sub=cat.children.find(s=>s.id===currentCollectionSubcat);
+    if(sub)label='"'+activeCat+' / '+sub.name+'"筛选';
+  }
+  $('collectionSummary').innerHTML='<div class="ss-left"><span>'+label+'</span><span class="ss-count">'+filtered.length+' 件</span></div><div class="ss-total">¥'+fmtMoney(cSum)+'</div>';
+
   const container=$('collectionContainer');
   if(filtered.length===0){
     container.innerHTML='<div class="collection-empty">'+
@@ -2285,7 +2374,8 @@ function renderCollections(){
     '</div>';
     return;
   }
-  /* 如果是全部模式，按品类分组 */
+
+  /* 全部模式:按品类分组 */
   if(currentCollectionTab==='all'){
     let html='';
     collectionCats.forEach(c=>{
@@ -2295,6 +2385,29 @@ function renderCollections(){
       html+='<div class="collection-grid">'+group.map(renderCollectionCard).join('')+'</div>';
     });
     container.innerHTML=html;
+  }else if(currentCollectionSubcat==='all'){
+    /* 选了父分类但没选子分类 - 如果有子分类,再按子分类分组 */
+    const cat=getCollectionCat(currentCollectionTab);
+    const subs=cat.children||[];
+    if(subs.length>0){
+      let html='';
+      /* 有子分类的组 */
+      subs.forEach(sub=>{
+        const group=filtered.filter(x=>x.subcat===sub.id);
+        if(group.length===0)return;
+        html+='<div class="collection-group-title"><span class="cg-name">'+escapeHtml(sub.name)+'</span><span class="cg-cnt">'+group.length+'件</span></div>';
+        html+='<div class="collection-grid">'+group.map(renderCollectionCard).join('')+'</div>';
+      });
+      /* 未归类到任何子分类的 */
+      const noSub=filtered.filter(x=>!x.subcat);
+      if(noSub.length>0){
+        html+='<div class="collection-group-title"><span class="cg-name">其他</span><span class="cg-cnt">'+noSub.length+'件</span></div>';
+        html+='<div class="collection-grid">'+noSub.map(renderCollectionCard).join('')+'</div>';
+      }
+      container.innerHTML=html;
+    }else{
+      container.innerHTML='<div class="collection-grid">'+filtered.map(renderCollectionCard).join('')+'</div>';
+    }
   }else{
     container.innerHTML='<div class="collection-grid">'+filtered.map(renderCollectionCard).join('')+'</div>';
   }
@@ -2310,7 +2423,7 @@ function renderCollectionCard(it){
   html+='<div class="cc-info">';
   html+='<div class="cc-name">'+escapeHtml(it.name)+'</div>';
   html+='<div class="cc-meta">';
-  html+='<span class="cc-brand">'+(it.brand?escapeHtml(it.brand):cat.name)+'</span>';
+  html+='<span class="cc-brand">'+(it.brand?escapeHtml(it.brand):catName)+'</span>';
   if(it.price>0)html+='<span class="cc-price">¥'+it.price+'</span>';
   html+='</div>';
   if(it.buyDate)html+='<div class="cc-date">'+it.buyDate+'</div>';
@@ -2323,26 +2436,76 @@ function openCollectionCatManager(){
   renderCatManager();
   openModal('collectionCatModal');
 }
+let expandedMgrCat=null;
 function renderCatManager(){
   const counts={};
   collectionCats.forEach(c=>{counts[c.id]=collections.filter(x=>x.category===c.id).length});
   let html='';
   collectionCats.forEach(c=>{
-    html+='<div class="cat-mgr-item">'+
+    const subs=Array.isArray(c.children)?c.children:[];
+    const isOpen=expandedMgrCat===c.id;
+    html+='<div class="cat-mgr-item '+(isOpen?'open':'')+'">'+
       (c.icon?'<div class="cmi-icon">'+c.icon+'</div>':'')+
       '<div class="cmi-name">'+escapeHtml(c.name)+'</div>'+
-      '<div class="cmi-cnt">'+(counts[c.id]||0)+'项</div>'+
+      '<div class="cmi-cnt">'+(counts[c.id]||0)+'项'+(subs.length>0?' · '+subs.length+'子':'')+'</div>'+
+      '<div class="cmi-expand" onclick="toggleCatExpand(\''+c.id+'\')" title="管理子分类">›</div>'+
       '<div class="cmi-del" onclick="removeCollectionCat(\''+c.id+'\')" title="删除">×</div>'+
     '</div>';
+    html+='<div class="cat-mgr-sub '+(isOpen?'open':'')+'" id="subMgr-'+c.id+'">';
+    if(subs.length===0){
+      html+='<div style="color:var(--text-light);font-size:11px;padding:2px 0">暂无子分类</div>';
+    }else{
+      let subCounts={};
+      subs.forEach(s=>{subCounts[s.id]=collections.filter(x=>x.category===c.id&&x.subcat===s.id).length});
+      subs.forEach(sub=>{
+        html+='<div class="sub-row"><span class="sr-name">↳ '+escapeHtml(sub.name)+'</span><span class="sr-cnt">'+(subCounts[sub.id]||0)+'项</span><span class="sr-del" onclick="removeSubCat(\''+c.id+'\',\''+sub.id+'\')" title="删除子分类">×</span></div>';
+      });
+    }
+    html+='<div class="sub-add"><input type="text" id="newSub-'+c.id+'" placeholder="输入子分类名" maxlength="8"><button class="btn btn-primary btn-sm" onclick="addSubCat(\''+c.id+'\')">+ 添加</button></div>';
+    html+='</div>';
   });
   $('catManagerList').innerHTML=html;
+}
+function toggleCatExpand(id){
+  expandedMgrCat = expandedMgrCat===id?null:id;
+  renderCatManager();
+}
+function addSubCat(catId){
+  const cat=getCollectionCat(catId);
+  if(!cat)return;
+  const input=$('newSub-'+catId);
+  const name=input.value.trim();
+  if(!name){toast('请输入子分类名');return}
+  if(!Array.isArray(cat.children))cat.children=[];
+  if(cat.children.some(s=>s.name===name)){toast('已存在同名子分类');return}
+  cat.children.push({id:genSubId(),name});
+  saveCollectionCats();
+  renderCatManager();
+  renderCollections();
+  toast('已添加子分类');
+}
+function removeSubCat(catId,subId){
+  const cat=getCollectionCat(catId);
+  if(!cat)return;
+  const cnt=collections.filter(x=>x.category===catId&&x.subcat===subId).length;
+  const sub=cat.children.find(s=>s.id===subId);
+  if(!sub)return;
+  if(!confirm('删除子分类「'+sub.name+'」'+(cnt>0?'（其中 '+cnt+' 件物品将归入"其他"）':'')+'?'))return;
+  collections.forEach(x=>{if(x.category===catId&&x.subcat===subId)x.subcat=''});
+  DB.set(DB.COLLECTIONS,collections);
+  cat.children=cat.children.filter(s=>s.id!==subId);
+  saveCollectionCats();
+  if(currentCollectionSubcat===subId)currentCollectionSubcat='all';
+  renderCatManager();
+  renderCollections();
+  toast('已删除');
 }
 function addCollectionCat(){
   const name=$('newCatName').value.trim();
   const icon=$('newCatIcon').value;
   if(!name){toast('请输入分类名称');return}
   if(collectionCats.some(c=>c.name===name)){toast('分类已存在');return}
-  collectionCats.push({id:genCatId(),icon,name});
+  collectionCats.push({id:genCatId(),icon,name,children:[]});
   saveCollectionCats();
   $('newCatName').value='';
   renderCatManager();
@@ -2356,28 +2519,33 @@ function removeCollectionCat(id){
   if(!confirm('删除分类「'+cat.name+'」' + (cnt>0?'（其中 '+cnt+' 件物品将归入最后一个分类）':'') + '?'))return;
   const fallbackId=collectionCats.filter(c=>c.id!==id).pop().id;
   if(cnt>0){
-    collections.forEach(x=>{if(x.category===id)x.category=fallbackId});
+    collections.forEach(x=>{
+      if(x.category===id){
+        x.category=fallbackId;
+        x.subcat='';
+      }
+    });
     DB.set(DB.COLLECTIONS,collections);
   }
   collectionCats=collectionCats.filter(c=>c.id!==id);
   saveCollectionCats();
-  if(currentCollectionTab===id)currentCollectionTab='all';
+  if(currentCollectionTab===id){currentCollectionTab='all';currentCollectionSubcat='all'}
   renderCatManager();
   renderCollections();
   toast('已删除');
 }
 function resetCollectionCats(){
-  if(!confirm('恢复所有分类为默认?（自定义分类会被删除）'))return;
-  /* 把所有旧分类物品归入默认第一个 */
+  if(!confirm('恢复所有分类为默认?（自定义分类和子分类会被删除）'))return;
   const defaultIds=DEFAULT_COLLECTION_CATS.map(c=>c.id);
   const firstDefaultId=DEFAULT_COLLECTION_CATS[0].id;
   collections.forEach(x=>{
-    if(!defaultIds.includes(x.category))x.category=firstDefaultId;
+    if(!defaultIds.includes(x.category)){x.category=firstDefaultId;x.subcat=''}
+    else{x.subcat=''}
   });
   DB.set(DB.COLLECTIONS,collections);
   collectionCats=JSON.parse(JSON.stringify(DEFAULT_COLLECTION_CATS));
   saveCollectionCats();
-  currentCollectionTab='all';
+  currentCollectionTab='all';currentCollectionSubcat='all';
   renderCatManager();
   renderCollections();
   toast('已恢复默认');
@@ -2762,7 +2930,7 @@ async function restoreFromDiag(){
 }
 
 /* 版本号：每次推送代码更新时改这个值，浏览器检测到变化会自动刷新清缓存 */
-const APP_VERSION='20260813g';
+const APP_VERSION='20260814a';
 /* 启动时检查版本，若 localStorage 里记录的版本不一致则强制刷新(带随机参数破缓存) */
 (function checkVersion(){
   try{
