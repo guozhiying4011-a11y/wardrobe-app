@@ -213,6 +213,18 @@ button{cursor:pointer;border:none;background:none}
 .collection-card .cc-date{font-size:9px;color:var(--text-light);margin-top:2px}
 .collection-empty{padding:30px 20px;text-align:center;color:var(--text-light);font-size:13px;line-height:1.8}
 
+/* 分类管理列表项 */
+.cat-mgr-item{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--cream);transition:background .15s}
+.cat-mgr-item:last-child{border-bottom:none}
+.cat-mgr-item .cmi-icon{width:32px;height:32px;border-radius:8px;background:var(--cream);display:flex;align-items:center;justify-content:center;font-size:18px;flex:0 0 auto}
+.cat-mgr-item .cmi-name{flex:1;font-size:14px;font-weight:600;color:var(--text-dark)}
+.cat-mgr-item .cmi-cnt{font-size:11px;color:var(--text-light);margin-right:4px}
+.cat-mgr-item .cmi-del{width:26px;height:26px;border-radius:50%;background:rgba(231,76,60,0.1);color:#e74c3c;display:flex;align-items:center;justify-content:center;font-size:14px;transition:transform .15s}
+.cat-mgr-item .cmi-del:active{transform:scale(0.85);background:rgba(231,76,60,0.2)}
+
+/* 物品页 tabbar 5个平分布局时 */
+.tabbar-inner .tab{flex:1}
+
 .modal-overlay{position:fixed;inset:0;background:rgba(53,46,42,0.5);backdrop-filter:blur(3px);z-index:200;display:none;align-items:flex-end;justify-content:center;animation:fadeIn .2s}
 .modal-overlay.show{display:flex}
 .modal-overlay.picker{z-index:250}
@@ -407,9 +419,7 @@ button{cursor:pointer;border:none;background:none}
     <div class="wh-top">
       <div class="wh-title">我的衣橱</div>
       <div class="wh-actions">
-        <div class="wh-btn" onclick="switchSubTab('clothes')" title="衣物"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20.38 3.46L16 2a4 4 0 0 0-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84h.42l-.92 8.65A2 2 0 0 0 5.36 21h13.28a2 2 0 0 0 1.99-2.35l-.92-8.65h.42a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.32-2.23zM12 4a2 2 0 0 1 2 2h-4a2 2 0 0 1 2-2zm-6 6h12v2H6v-2zm1.1 10l.9-8h8l.9 8H7.1z"/></svg></div>
-        <div class="wh-btn" onclick="switchSubTab('outfits')" title="搭配"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zm0 7L4.5 5.5 12 3l7.5 2.5L12 9zm0 4L2 8v9l10 5 10-5V8l-10 5z"/></svg></div>
-        <div class="wh-btn" onclick="switchSubTab('collections')" title="物品"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-9 13H7v-4h4v4zm0-6H7V7h4v4zm6 6h-4v-4h4v4zm0-6h-4V7h4v4z"/></svg></div>
+        <div class="wh-btn" onclick="openClothingModal()" title="添加衣物" style="background:var(--orange);color:#fff"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></div>
       </div>
     </div>
     <div class="search-bar">
@@ -420,7 +430,6 @@ button{cursor:pointer;border:none;background:none}
   <div class="sub-tabs">
     <div class="sub-tab active" id="st-clothes" onclick="switchSubTab('clothes')">我的衣物</div>
     <div class="sub-tab" id="st-outfits" onclick="switchSubTab('outfits')">我的搭配</div>
-    <div class="sub-tab" id="st-collections" onclick="switchSubTab('collections')">我的物品</div>
   </div>
   <div id="view-clothes">
     <div class="wardrobe-body">
@@ -444,13 +453,20 @@ button{cursor:pointer;border:none;background:none}
       </div>
     </div>
   </div>
-  <div id="view-collections" style="display:none">
-    <div style="padding:8px 12px;display:flex;gap:8px">
-      <button class="btn btn-primary btn-sm" onclick="openCollectionModal()">+ 添加物品</button>
-    </div>
-    <div class="collection-cat-bar" id="collectionCatBar"></div>
-    <div id="collectionContainer"></div>
+</div>
+
+<!-- 物品页 -->
+<div class="page" id="page-collections">
+  <div class="inspire-header">
+    <div class="ih-title">我的物品</div>
+    <div class="ih-sub">衣橱以外的所有心头好</div>
   </div>
+  <div style="padding:8px 12px;display:flex;gap:8px">
+    <button class="btn btn-primary btn-sm" onclick="openCollectionModal()">+ 添加物品</button>
+    <button class="btn btn-cream btn-sm" onclick="openCollectionCatManager()">⚙️ 管理分类</button>
+  </div>
+  <div class="collection-cat-bar" id="collectionCatBar"></div>
+  <div id="collectionContainer"></div>
 </div>
 
 <!-- 收藏页 -->
@@ -544,7 +560,7 @@ button{cursor:pointer;border:none;background:none}
   <div class="tabbar-inner">
     <div class="tab active" data-page="home" onclick="switchTab('home',this)"><svg class="ticon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><span>首页</span></div>
     <div class="tab" data-page="wardrobe" onclick="switchTab('wardrobe',this)"><svg class="ticon" viewBox="0 0 24 24"><path d="M20.38 3.46L16 2a4 4 0 0 0-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84h.42l-.92 8.65A2 2 0 0 0 5.36 21h13.28a2 2 0 0 0 1.99-2.35l-.92-8.65h.42a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.32-2.23zM12 4a2 2 0 0 1 2 2h-4a2 2 0 0 1 2-2z"/></svg><span>衣橱</span></div>
-    <div class="tab-add" onclick="openClothingModal()"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></div>
+    <div class="tab" data-page="collections" onclick="switchTab('collections',this)"><svg class="ticon" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-9 13H7v-4h4v4zm0-6H7V7h4v4zm6 6h-4v-4h4v4zm0-6h-4V7h4v4z"/></svg><span>物品</span></div>
     <div class="tab" data-page="inspire" onclick="switchTab('inspire',this)"><svg class="ticon" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zm0 9L4.5 7.5 12 4.5l7.5 3L12 11zm0 3L2 9v9l10 5 10-5V9l-10 5z"/></svg><span>收藏</span></div>
     <div class="tab" data-page="profile" onclick="switchTab('profile',this)"><svg class="ticon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span>我的</span></div>
   </div>
@@ -683,6 +699,24 @@ button{cursor:pointer;border:none;background:none}
   </div>
 </div>
 
+<!-- 物品分类管理弹窗 -->
+<div class="modal-overlay" id="collectionCatModal">
+  <div class="modal">
+    <div class="modal-header"><h2>管理物品分类</h2><div class="modal-close" onclick="closeModal('collectionCatModal')">&times;</div></div>
+    <div id="catManagerList" style="padding:4px 0;max-height:40vh;overflow-y:auto"></div>
+    <div class="cat-add-row" style="display:flex;gap:8px;padding:12px 0 6px;border-top:1px solid var(--cream-dark);margin-top:4px">
+      <input type="text" id="newCatName" class="form-input" placeholder="新分类名称 (如:耳机)" style="flex:1" maxlength="8">
+      <select id="newCatIcon" class="form-select" style="width:68px;padding:0 4px">
+        <option>👜</option><option>💍</option><option>💄</option><option>📱</option><option>🏠</option>
+        <option>⌚</option><option>⚽</option><option>👟</option><option>🎧</option><option>📚</option>
+        <option>🌸</option><option>🍵</option><option>✨</option><option>🎁</option><option>🎨</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="addCollectionCat()">+</button>
+    </div>
+    <div class="form-actions"><button class="btn btn-cream" onclick="resetCollectionCats()">恢复默认</button><button class="btn btn-primary" onclick="closeModal('collectionCatModal')">完成</button></div>
+  </div>
+</div>
+
 <!-- 数据诊断弹窗 -->
 <div class="modal-overlay" id="diagModal">
   <div class="modal">
@@ -815,14 +849,14 @@ function idbDelete(k){
 /* 带内存缓存的存储层 - 同步读 + 异步写，解决配额问题 */
 /* ===== 存储层：IndexedDB 优先，localStorage 后备 ===== */
 const _cache={};
-const DB_KEYS=['wc_clothes','wc_outfits','wc_records','wc_inspires','wc_sources','wc_last_buy_date','wc_collections'];
+const DB_KEYS=['wc_clothes','wc_outfits','wc_records','wc_inspires','wc_sources','wc_last_buy_date','wc_collections','wc_collection_cats'];
 let _dbReady=false;
 
 /* 写入结果：{ok: bool, lsOK: bool, idbPending: bool, err: string|null} */
 const DB={
   CLOTHES:'wc_clothes',OUTFITS:'wc_outfits',RECORDS:'wc_records',
   INSPIRES:'wc_inspires',SOURCES:'wc_sources',LAST_BUY_DATE:'wc_last_buy_date',
-  COLLECTIONS:'wc_collections',
+  COLLECTIONS:'wc_collections',COLLECTION_CATS:'wc_collection_cats',
   get(k,d){
     if(k in _cache)return _cache[k];
     /* 后备：从 localStorage 读 */
@@ -948,7 +982,7 @@ const SEASONS=['春','夏','秋','冬'];
 const SEASON_EMOJI={春:'🌸',夏:'☀️',秋:'🍂',冬:'❄️'};
 const INSPIRE_CATS=['通勤','外出'];
 const INSPIRE_TYPES=['上衣','裤子','裙子','外套','套装','其他'];
-const COLLECTION_CATS=[
+const DEFAULT_COLLECTION_CATS=[
   {id:'bag',icon:'👜',name:'包袋'},
   {id:'jewelry',icon:'💍',name:'饰品'},
   {id:'beauty',icon:'💄',name:'美妆'},
@@ -958,6 +992,14 @@ const COLLECTION_CATS=[
   {id:'sports',icon:'⚽',name:'运动'},
   {id:'other',icon:'✨',name:'其他'},
 ];
+let collectionCats=JSON.parse(JSON.stringify(DEFAULT_COLLECTION_CATS));
+function loadCollectionCats(){
+  const saved=DB.get(DB.COLLECTION_CATS,null);
+  if(Array.isArray(saved)&&saved.length>0){collectionCats=saved}else{collectionCats=JSON.parse(JSON.stringify(DEFAULT_COLLECTION_CATS))}
+}
+function saveCollectionCats(){DB.set(DB.COLLECTION_CATS,collectionCats)}
+function genCatId(){return 'cat_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6)}
+function getCollectionCat(id){return collectionCats.find(c=>c.id===id)||collectionCats[collectionCats.length-1]}
 
 let clothes=[];
 let outfits=[];
@@ -974,7 +1016,7 @@ let currentInspireScene='all';
 let currentInspireMonth='all'; /* 'all' 或 'YYYY-MM' */
 let currentOutfitFilter='all';
 let homeOutfitFilter='all';
-let currentCollectionTab='all'; /* 'all' 或 COLLECTION_CATS[i].id */
+let currentCollectionTab='all'; /* 'all' 或 collectionCats[i].id */
 let outfitBuilder={};
 let recordBuilder={};      // 记录弹窗"自由选单品"模式下的 builder
 let pickerContext='outfit'; // 'outfit' | 'record' - pickerModal 当前写入的 builder
@@ -1020,7 +1062,8 @@ function switchTab(page,el){
   document.querySelectorAll('.tabbar .tab').forEach(t=>t.classList.remove('active'));
   if(el)el.classList.add('active');
   if(page==='home')renderHome();
-  if(page==='wardrobe'){renderClothes();renderOutfits();renderCollections();}
+  if(page==='wardrobe'){renderClothes();renderOutfits();}
+  if(page==='collections')renderCollections();
   if(page==='inspire')renderInspire();
   if(page==='profile')renderProfile();
   window.scrollTo(0,0);
@@ -1028,11 +1071,8 @@ function switchTab(page,el){
 function switchSubTab(which){
   $('st-clothes').classList.toggle('active',which==='clothes');
   $('st-outfits').classList.toggle('active',which==='outfits');
-  $('st-collections').classList.toggle('active',which==='collections');
   $('view-clothes').style.display=which==='clothes'?'block':'none';
   $('view-outfits').style.display=which==='outfits'?'block':'none';
-  $('view-collections').style.display=which==='collections'?'block':'none';
-  if(which==='collections')renderCollections();
 }
 
 function initPickers(){
@@ -2083,7 +2123,6 @@ function renderIdle(){
 
 /* ===== 我的物品(扩展品类) ===== */
 let collectionPhotoData=null;
-function getCollectionCat(id){return COLLECTION_CATS.find(c=>c.id===id)||COLLECTION_CATS[COLLECTION_CATS.length-1]}
 function openCollectionModal(id){
   $('collectionModalTitle').textContent=id?'编辑物品':'添加物品';
   $('collectionItemId').value=id||'';
@@ -2095,10 +2134,10 @@ function openCollectionModal(id){
   collectionPhotoData=null;
   renderCollectionPhotoUpload(null);
   /* 默认选中当前 filter 的品类 */
-  const defaultCat=currentCollectionTab==='all'?COLLECTION_CATS[0].id:currentCollectionTab;
+  const defaultCat=currentCollectionTab==='all'?collectionCats[0].id:currentCollectionTab;
   const currentCat=id?(collections.find(x=>x.id===id)||{}).category:defaultCat;
   /* 渲染品类 picker */
-  $('collectionCatPicker').innerHTML=COLLECTION_CATS.map(c=>
+  $('collectionCatPicker').innerHTML=collectionCats.map(c=>
     '<div class="chip-opt '+(currentCat===c.id?'selected':'')+'" data-val="'+c.id+'" onclick="selectChip(this)">'+c.icon+' '+c.name+'</div>'
   ).join('');
   if(id){
@@ -2138,7 +2177,7 @@ function saveCollectionItem(){
     const name=$('collectionItemName').value.trim();
     if(!name){toast('请填写物品名称');return}
     const catChip=$('#collectionCatPicker .chip-opt.selected');
-    const category=catChip?catChip.dataset.val:(currentCollectionTab==='all'?COLLECTION_CATS[0].id:currentCollectionTab);
+    const category=catChip?catChip.dataset.val:(currentCollectionTab==='all'?collectionCats[0].id:currentCollectionTab);
     const id=$('collectionItemId').value;
     const data={
       id:id||uid(),
@@ -2177,10 +2216,10 @@ function setCollectionTab(tab){currentCollectionTab=tab;renderCollections()}
 function renderCollections(){
   /* 分类栏 */
   const counts={};
-  COLLECTION_CATS.forEach(c=>{counts[c.id]=collections.filter(x=>x.category===c.id).length});
+  collectionCats.forEach(c=>{counts[c.id]=collections.filter(x=>x.category===c.id).length});
   const allCnt=collections.length;
   let barHtml='<div class="collection-cat-chip '+(currentCollectionTab==='all'?'active':'')+'" onclick="setCollectionTab(\'all\')">全部<span class="cnt">'+allCnt+'</span></div>';
-  COLLECTION_CATS.forEach(c=>{
+  collectionCats.forEach(c=>{
     barHtml+='<div class="collection-cat-chip '+(currentCollectionTab===c.id?'active':'')+'" onclick="setCollectionTab(\''+c.id+'\')">'+c.icon+' '+c.name+'<span class="cnt">'+counts[c.id]+'</span></div>';
   });
   $('collectionCatBar').innerHTML=barHtml;
@@ -2199,7 +2238,7 @@ function renderCollections(){
   /* 如果是全部模式，按品类分组 */
   if(currentCollectionTab==='all'){
     let html='';
-    COLLECTION_CATS.forEach(c=>{
+    collectionCats.forEach(c=>{
       const group=collections.filter(x=>x.category===c.id).sort((a,b)=>(b.buyDate||'').localeCompare(a.buyDate||''));
       if(group.length===0)return;
       html+='<div class="collection-group-title"><span class="cg-icon">'+c.icon+'</span><span class="cg-name">'+c.name+'</span><span class="cg-cnt">'+group.length+'件</span></div>';
@@ -2227,6 +2266,71 @@ function renderCollectionCard(it){
   if(it.buyDate)html+='<div class="cc-date">'+it.buyDate+'</div>';
   html+='</div></div>';
   return html;
+}
+
+/* ===== 物品分类管理 ===== */
+function openCollectionCatManager(){
+  renderCatManager();
+  openModal('collectionCatModal');
+}
+function renderCatManager(){
+  const counts={};
+  collectionCats.forEach(c=>{counts[c.id]=collections.filter(x=>x.category===c.id).length});
+  let html='';
+  collectionCats.forEach(c=>{
+    html+='<div class="cat-mgr-item">'+
+      '<div class="cmi-icon">'+c.icon+'</div>'+
+      '<div class="cmi-name">'+escapeHtml(c.name)+'</div>'+
+      '<div class="cmi-cnt">'+(counts[c.id]||0)+'项</div>'+
+      '<div class="cmi-del" onclick="removeCollectionCat(\''+c.id+'\')" title="删除">×</div>'+
+    '</div>';
+  });
+  $('catManagerList').innerHTML=html;
+}
+function addCollectionCat(){
+  const name=$('newCatName').value.trim();
+  const icon=$('newCatIcon').value;
+  if(!name){toast('请输入分类名称');return}
+  if(collectionCats.some(c=>c.name===name)){toast('分类已存在');return}
+  collectionCats.push({id:genCatId(),icon,name});
+  saveCollectionCats();
+  $('newCatName').value='';
+  renderCatManager();
+  renderCollections();
+  toast('已添加');
+}
+function removeCollectionCat(id){
+  const cnt=collections.filter(x=>x.category===id).length;
+  const cat=collectionCats.find(c=>c.id===id);
+  if(!cat)return;
+  if(!confirm('删除分类「'+cat.name+'」' + (cnt>0?'（其中 '+cnt+' 件物品将归入最后一个分类）':'') + '?'))return;
+  const fallbackId=collectionCats.filter(c=>c.id!==id).pop().id;
+  if(cnt>0){
+    collections.forEach(x=>{if(x.category===id)x.category=fallbackId});
+    DB.set(DB.COLLECTIONS,collections);
+  }
+  collectionCats=collectionCats.filter(c=>c.id!==id);
+  saveCollectionCats();
+  if(currentCollectionTab===id)currentCollectionTab='all';
+  renderCatManager();
+  renderCollections();
+  toast('已删除');
+}
+function resetCollectionCats(){
+  if(!confirm('恢复所有分类为默认?（自定义分类会被删除）'))return;
+  /* 把所有旧分类物品归入默认第一个 */
+  const defaultIds=DEFAULT_COLLECTION_CATS.map(c=>c.id);
+  const firstDefaultId=DEFAULT_COLLECTION_CATS[0].id;
+  collections.forEach(x=>{
+    if(!defaultIds.includes(x.category))x.category=firstDefaultId;
+  });
+  DB.set(DB.COLLECTIONS,collections);
+  collectionCats=JSON.parse(JSON.stringify(DEFAULT_COLLECTION_CATS));
+  saveCollectionCats();
+  currentCollectionTab='all';
+  renderCatManager();
+  renderCollections();
+  toast('已恢复默认');
 }
 
 /* 我的页 */
@@ -2435,7 +2539,7 @@ function renderProfile(){
   $('storageStatus').innerHTML=html;
 }
 function exportData(){
-  const data={clothes,outfits,records,inspires,savedSources,collections,exportAt:new Date().toISOString()};
+  const data={clothes,outfits,records,inspires,savedSources,collections,collectionCats,exportAt:new Date().toISOString()};
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
@@ -2456,21 +2560,22 @@ function importData(e){
       if(data.inspires)inspires=data.inspires;
       if(data.savedSources)savedSources=data.savedSources;
       if(data.collections)collections=data.collections;
+      if(data.collectionCats)collectionCats=data.collectionCats;
       toast('正在写入存储...');
-      /* 用 setAsync 确保数据真正写入 IndexedDB 后再提示成功 */
       await DB.setAsync(DB.CLOTHES,clothes);
       await DB.setAsync(DB.OUTFITS,outfits);
       await DB.setAsync(DB.RECORDS,records);
       await DB.setAsync(DB.INSPIRES,inspires);
       await DB.setAsync(DB.SOURCES,savedSources);
       await DB.setAsync(DB.COLLECTIONS,collections);
+      await DB.setAsync(DB.COLLECTION_CATS,collectionCats);
       renderProfile();renderClothes();renderOutfits();renderCollections();renderInspire();renderHome();
       toast('导入成功,数据已安全保存');
     }catch(err){
       console.error('import error:',err);
       toast('导入失败:文件格式错误');
     }
-    e.target.value=''; /* 允许重复导入同一文件 */
+    e.target.value='';
   };
   reader.readAsText(file);
 }
@@ -2478,8 +2583,8 @@ function clearAllData(){
   if(!confirm('确定清空所有数据?此操作不可恢复!'))return;
   if(!confirm('再次确认:所有衣物、搭配、收藏、物品、记录都将删除!'))return;
   clothes=[];outfits=[];records=[];inspires=[];savedSources=[];collections=[];
-  /* force=true 跳过空数组保护 */
-  DB.set(DB.CLOTHES,clothes,true);DB.set(DB.OUTFITS,outfits,true);DB.set(DB.RECORDS,records,true);DB.set(DB.INSPIRES,inspires,true);DB.set(DB.SOURCES,savedSources,true);DB.set(DB.COLLECTIONS,collections,true);
+  collectionCats=JSON.parse(JSON.stringify(DEFAULT_COLLECTION_CATS));
+  DB.set(DB.CLOTHES,clothes,true);DB.set(DB.OUTFITS,outfits,true);DB.set(DB.RECORDS,records,true);DB.set(DB.INSPIRES,inspires,true);DB.set(DB.SOURCES,savedSources,true);DB.set(DB.COLLECTIONS,collections,true);DB.set(DB.COLLECTION_CATS,collectionCats,true);
   renderProfile();renderClothes();renderOutfits();renderCollections();renderInspire();renderHome();
   toast('已清空');
 }
@@ -2492,7 +2597,7 @@ async function diagnoseData(){
   $('diagCloseActions').style.display='none';
   openModal('diagModal');
   const found={};
-  const knownKeys=['wc_clothes','wc_outfits','wc_records','wc_inspires','wc_sources','wc_last_buy_date','wc_collections'];
+  const knownKeys=['wc_clothes','wc_outfits','wc_records','wc_inspires','wc_sources','wc_last_buy_date','wc_collections','wc_collection_cats'];
   /* 1. 扫描 localStorage 所有 key */
   let lsReport=[];
   for(let i=0;i<localStorage.length;i++){
@@ -2607,7 +2712,7 @@ async function restoreFromDiag(){
 }
 
 /* 版本号：每次推送代码更新时改这个值，浏览器检测到变化会自动刷新清缓存 */
-const APP_VERSION='20260813b';
+const APP_VERSION='20260813c';
 /* 启动时检查版本，若 localStorage 里记录的版本不一致则强制刷新(带随机参数破缓存) */
 (function checkVersion(){
   try{
@@ -2659,7 +2764,8 @@ async function init(){
   inspires=DB.get(DB.INSPIRES,[]);
   savedSources=DB.get(DB.SOURCES,[]);
   collections=DB.get(DB.COLLECTIONS,[]);
-  console.log('[init] 数据加载完成: 衣物',clothes.length,'搭配',outfits.length,'物品',collections.length,'记录',records.length,'收藏',inspires.length,'| IDB:',idb?'OK':'FAIL');
+  loadCollectionCats();
+  console.log('[init] 数据加载完成: 衣物',clothes.length,'搭配',outfits.length,'物品',collections.length,'记录',records.length,'收藏',inspires.length,'分类',collectionCats.length,'| IDB:',idb?'OK':'FAIL');
   initPickers();
   renderHome();
   $('searchInput').addEventListener('input',renderClothes);
@@ -2675,6 +2781,7 @@ async function init(){
       if(inspires.length>0)localStorage.setItem(DB.INSPIRES,JSON.stringify(inspires));
       if(savedSources.length>0)localStorage.setItem(DB.SOURCES,JSON.stringify(savedSources));
       if(collections.length>0)localStorage.setItem(DB.COLLECTIONS,JSON.stringify(collections));
+      if(collectionCats.length>0)localStorage.setItem(DB.COLLECTION_CATS,JSON.stringify(collectionCats));
     }catch(_){}
   });
   /* 多标签页同步：监听 localStorage 变化 */
