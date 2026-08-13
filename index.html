@@ -114,6 +114,27 @@ button{cursor:pointer;border:none;background:none}
 .chip{flex:0 0 auto;padding:7px 16px;border-radius:20px;background:var(--card);color:var(--text-mid);font-size:13px;font-weight:500;box-shadow:var(--shadow);transition:all .2s;white-space:nowrap}
 .chip.active{background:var(--brown-deep);color:var(--cream)}
 
+/* 衣橱左右分栏布局 */
+.wardrobe-body{display:flex;gap:0;padding:0;margin-top:8px}
+.season-sidebar{flex:0 0 100px;background:var(--card);border-radius:0 var(--radius-sm) var(--radius-sm) 0;box-shadow:var(--shadow);padding:12px 0;display:flex;flex-direction:column;gap:4px;position:sticky;top:8px;max-height:calc(100vh - 180px);overflow-y:auto}
+.season-sidebar::-webkit-scrollbar{display:none}
+.season-item{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px;cursor:pointer;position:relative;transition:all .2s;border-radius:12px;margin:0 6px}
+.season-item:active{background:rgba(53,46,42,0.04)}
+.season-item .si-icon{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--cream);margin-bottom:5px;transition:all .2s}
+.season-item .si-name{font-size:12px;font-weight:600;color:var(--text-dark)}
+.season-item .si-count{font-size:10px;color:var(--text-light);margin-top:1px}
+.season-item .si-arrow{position:absolute;right:2px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--text-light);opacity:0;transition:opacity .2s}
+.season-item.active{background:var(--cream-light)}
+.season-item.active .si-icon{background:var(--caramel);color:#fff;transform:scale(1.08);box-shadow:0 2px 8px rgba(181,119,67,0.3)}
+.season-item.active .si-name{color:var(--caramel);font-weight:700}
+.season-item.active .si-count{color:var(--caramel);opacity:.8}
+.season-item.active .si-arrow{opacity:1;color:var(--caramel)}
+.season-item.si-all .si-icon{background:var(--brown-deep);color:var(--cream)}
+.season-item.si-all.active .si-icon{background:var(--caramel);color:#fff}
+.wardrobe-main{flex:1;min-width:0;padding-right:12px}
+.wardrobe-main .chip-bar{padding:8px 8px}
+.wardrobe-main .clothes-grid{padding:0 8px}
+
 .clothes-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding:0 20px}
 .clothing-card{background:var(--card);border-radius:var(--radius-sm);overflow:hidden;box-shadow:var(--shadow);position:relative;transition:transform .2s}
 .clothing-card:active{transform:scale(0.97)}
@@ -354,8 +375,13 @@ button{cursor:pointer;border:none;background:none}
     <div class="sub-tab" id="st-outfits" onclick="switchSubTab('outfits')">我的搭配</div>
   </div>
   <div id="view-clothes">
-    <div class="chip-bar" id="categoryChips"></div>
-    <div class="clothes-grid" id="clothesGrid"></div>
+    <div class="wardrobe-body">
+      <div class="season-sidebar" id="seasonSidebar"></div>
+      <div class="wardrobe-main">
+        <div class="chip-bar" id="categoryChips"></div>
+        <div class="clothes-grid" id="clothesGrid"></div>
+      </div>
+    </div>
   </div>
   <div id="view-outfits" style="display:none">
     <div style="padding:0 20px 12px;display:flex;gap:8px">
@@ -844,6 +870,7 @@ let records=[];
 let inspires=[];
 let savedSources=[];
 let currentCategory='';
+let currentWardrobeSeason='all'; /* 'all' 或 '春'/'夏'/'秋'/'冬' */
 let currentInspireTypes=[];
 let currentInspireSeasons=[];
 let currentInspireScene='all';
@@ -928,6 +955,28 @@ function selectColor(el){el.parentElement.querySelectorAll('.color-opt').forEach
 function setRating(v){currentRating=v;document.querySelectorAll('#ratingPicker .star').forEach((s,i)=>s.classList.toggle('active',i<v))}
 
 /* 衣物管理 */
+function renderSeasonSidebar(){
+  const allCount=clothes.length;
+  const seasonCounts={};
+  SEASONS.forEach(s=>{seasonCounts[s]=clothes.filter(c=>(c.season||[]).includes(s)).length});
+  const items=[
+    {key:'all',icon:'👕',name:'全部',count:allCount,cls:'si-all'},
+    {key:'春',icon:'🌸',name:'春季',count:seasonCounts['春']||0},
+    {key:'夏',icon:'☀️',name:'夏季',count:seasonCounts['夏']||0},
+    {key:'秋',icon:'🍂',name:'秋季',count:seasonCounts['秋']||0},
+    {key:'冬',icon:'❄️',name:'冬季',count:seasonCounts['冬']||0},
+  ];
+  $('seasonSidebar').innerHTML=items.map(it=>{
+    const active=currentWardrobeSeason===it.key?'active':'';
+    return '<div class="season-item '+it.cls+' '+active+'" onclick="setWardrobeSeason(\''+it.key+'\')">'+
+      '<div class="si-icon">'+it.icon+'</div>'+
+      '<div class="si-name">'+it.name+'</div>'+
+      '<div class="si-count">'+it.count+'</div>'+
+      '<div class="si-arrow">›</div>'+
+    '</div>';
+  }).join('');
+}
+function setWardrobeSeason(s){currentWardrobeSeason=s;renderClothes()}
 function renderCategoryChips(){
   let html='<div class="chip '+(currentCategory===''?'active':'')+'" onclick="setCategory(\'\')">全部</div>';
   html+=CATEGORIES.map(c=>'<div class="chip '+(currentCategory===c?'active':'')+'" onclick="setCategory(\''+c+'\')">'+c+'</div>').join('');
@@ -935,12 +984,14 @@ function renderCategoryChips(){
 }
 function setCategory(c){currentCategory=c;renderClothes()}
 function renderClothes(){
+  renderSeasonSidebar();
   renderCategoryChips();
   const grid=$('clothesGrid');
   const search=$('searchInput').value.toLowerCase();
   let filtered=clothes.filter(c=>{
     if(search&&!(c.name.toLowerCase().includes(search)||(c.brand||'').toLowerCase().includes(search)))return false;
     if(currentCategory&&c.category!==currentCategory)return false;
+    if(currentWardrobeSeason!=='all'&&!(c.season||[]).includes(currentWardrobeSeason))return false;
     return true;
   });
   filtered.sort((a,b)=>{
@@ -2251,7 +2302,7 @@ async function restoreFromDiag(){
 }
 
 /* 版本号：每次推送代码更新时改这个值，浏览器检测到变化会自动刷新清缓存 */
-const APP_VERSION='20260805b';
+const APP_VERSION='20260813a';
 /* 启动时检查版本，若 localStorage 里记录的版本不一致则强制刷新(带随机参数破缓存) */
 (function checkVersion(){
   try{
