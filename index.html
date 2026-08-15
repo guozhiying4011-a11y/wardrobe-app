@@ -2413,6 +2413,8 @@ function renderCollections(){
 }
 function renderCollectionCard(it){
   const cat=getCollectionCat(it.category);
+  let catName=cat?cat.name:'';
+  if(it.subcat){const sub=(cat.children||[]).find(x=>x.id===it.subcat);if(sub)catName=catName+' / '+sub.name;}
   let html='<div class="collection-card" onclick="editCollectionItem(\''+it.id+'\')">';
   html+='<div class="cc-del" onclick="event.stopPropagation();deleteCollectionItem(\''+it.id+'\')">&times;</div>';
   html+='<div class="cc-photo">';
