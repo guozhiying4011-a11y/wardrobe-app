@@ -1059,8 +1059,31 @@ function loadCollectionCats(){
 function saveCollectionCats(){DB.set(DB.COLLECTION_CATS,collectionCats)}
 function genCatId(){return 'cat_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6)}
 function genSubId(){return 'sub_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6)}
-function getCollectionCat(id){return collectionCats.find(c=>c.id===id)||collectionCats[collectionCats.length-1]}
+function getCollectionCat(id){return collectionCats.find(c=>c.id===id)||null}
 function getSubcatsOfCat(catId){const c=getCollectionCat(catId);return c&&Array.isArray(c.children)?c.children:[]}
+function ensureCollectionConsistency(){
+  if(!Array.isArray(collections)||collections.length===0)return;
+  let changed=false;
+  collectionCats.forEach(c=>{if(!Array.isArray(c.children)){c.children=[];changed=true}});
+  const validCatIds=new Set(collectionCats.map(c=>c.id));
+  const validSubIds=new Set();
+  collectionCats.forEach(c=>(c.children||[]).forEach(s=>validSubIds.add(s.id)));
+  collections.forEach(it=>{
+    if(!it.category||!validCatIds.has(it.category)){
+      it.category=collectionCats[0].id;
+      changed=true;
+    }
+    if(it.subcat&&!validSubIds.has(it.subcat)){
+      it.subcat='';
+      changed=true;
+    }
+  });
+  if(changed){
+    console.warn('[ensureCollectionConsistency] 发现并修复了数据不一致');
+    DB.set(DB.COLLECTIONS,collections);
+    saveCollectionCats();
+  }
+}
 
 let clothes=[];
 let outfits=[];
@@ -2360,8 +2383,10 @@ function renderCollections(){
   let label='"'+activeCat+'"筛选';
   if(currentCollectionTab!=='all'&&currentCollectionSubcat!=='all'){
     const cat=getCollectionCat(currentCollectionTab);
-    const sub=cat.children.find(s=>s.id===currentCollectionSubcat);
-    if(sub)label='"'+activeCat+' / '+sub.name+'"筛选';
+    if(cat){
+      const sub=(cat.children||[]).find(s=>s.id===currentCollectionSubcat);
+      if(sub)label='"'+activeCat+' / '+sub.name+'"筛选';
+    }
   }
   $('collectionSummary').innerHTML='<div class="ss-left"><span>'+label+'</span><span class="ss-count">'+filtered.length+' 件</span></div><div class="ss-total">¥'+fmtMoney(cSum)+'</div>';
 
@@ -2383,11 +2408,17 @@ function renderCollections(){
       html+='<div class="collection-group-title">'+(c.icon?'<span class="cg-icon">'+c.icon+'</span>':'')+'<span class="cg-name">'+c.name+'</span><span class="cg-cnt">'+group.length+'件</span></div>';
       html+='<div class="collection-grid">'+group.map(renderCollectionCard).join('')+'</div>';
     });
+    const validIds=new Set(collectionCats.map(c=>c.id));
+    const orphans=collections.filter(x=>!x.category||!validIds.has(x.category));
+    if(orphans.length>0){
+      html+='<div class="collection-group-title"><span class="cg-icon">⚠️</span><span class="cg-name">未分类</span><span class="cg-cnt">'+orphans.length+'件</span></div>';
+      html+='<div class="collection-grid">'+orphans.map(renderCollectionCard).join('')+'</div>';
+    }
     container.innerHTML=html;
   }else if(currentCollectionSubcat==='all'){
     /* 选了父分类但没选子分类 - 如果有子分类,再按子分类分组 */
     const cat=getCollectionCat(currentCollectionTab);
-    const subs=cat.children||[];
+    const subs=(cat&&cat.children)||[];
     if(subs.length>0){
       let html='';
       /* 有子分类的组 */
@@ -2413,13 +2444,13 @@ function renderCollections(){
 }
 function renderCollectionCard(it){
   const cat=getCollectionCat(it.category);
-  let catName=cat?cat.name:'';
-  if(it.subcat){const sub=(cat.children||[]).find(x=>x.id===it.subcat);if(sub)catName=catName+' / '+sub.name;}
+  let catName=cat?cat.name:'未知分类';
+  if(cat&&it.subcat){const sub=(cat.children||[]).find(x=>x.id===it.subcat);if(sub)catName=catName+' / '+sub.name;}
   let html='<div class="collection-card" onclick="editCollectionItem(\''+it.id+'\')">';
   html+='<div class="cc-del" onclick="event.stopPropagation();deleteCollectionItem(\''+it.id+'\')">&times;</div>';
   html+='<div class="cc-photo">';
   if(it.image)html+='<img src="'+it.image+'">';
-  else html+='<div class="cc-ph">'+cat.icon+'</div>';
+  else html+='<div class="cc-ph">'+(cat?(cat.icon||'✨'):'✨')+'</div>';
   html+='</div>';
   html+='<div class="cc-info">';
   html+='<div class="cc-name">'+escapeHtml(it.name)+'</div>';
@@ -2691,8 +2722,10 @@ function showSpendDetail(type,off){
         editFn="closeModal('spendDetailModal');editClothing('"+c.id+"')";
       }else{
         const cat=getCollectionCat(c.category);
-        thumb=c.image?'<img src="'+c.image+'">':'<div class="sd-ph" style="font-size:28px">'+cat.icon+'</div>';
-        metaExtra='<span>'+cat.icon+' '+cat.name+'</span>'+
+        const catIcon=cat?(cat.icon||'✨'):'✨';
+        const catName=cat?cat.name:'未知分类';
+        thumb=c.image?'<img src="'+c.image+'">':'<div class="sd-ph" style="font-size:28px">'+catIcon+'</div>';
+        metaExtra='<span>'+catIcon+' '+catName+'</span>'+
           (c.brand?'<span>'+escapeHtml(c.brand)+'</span>':'')+
           (dateStr?'<span>'+dateStr+'</span>':'')+
           '<span style="color:var(--caramel);font-weight:600">物品</span>';
@@ -2931,7 +2964,7 @@ async function restoreFromDiag(){
 }
 
 /* 版本号：每次推送代码更新时改这个值，浏览器检测到变化会自动刷新清缓存 */
-const APP_VERSION='20260814b';
+const APP_VERSION='20260815a';
 /* 启动时检查版本，若 localStorage 里记录的版本不一致则强制刷新(带随机参数破缓存) */
 (function checkVersion(){
   try{
@@ -2984,6 +3017,7 @@ async function init(){
   savedSources=DB.get(DB.SOURCES,[]);
   collections=DB.get(DB.COLLECTIONS,[]);
   loadCollectionCats();
+  ensureCollectionConsistency();
   console.log('[init] 数据加载完成: 衣物',clothes.length,'搭配',outfits.length,'物品',collections.length,'记录',records.length,'收藏',inspires.length,'分类',collectionCats.length,'| IDB:',idb?'OK':'FAIL');
   initPickers();
   renderHome();
@@ -3011,7 +3045,12 @@ async function init(){
         const cur=_cache[e.key];
         const curLen=Array.isArray(cur)?cur.length:0;
         const newLen=Array.isArray(v)?v.length:0;
-        if(newLen>curLen){_cache[e.key]=v;renderClothes();renderOutfits();renderInspire();renderHome()}
+        if(newLen>curLen||(curLen===0&&newLen>0)){
+          _cache[e.key]=v;
+          if(e.key===DB.COLLECTIONS){collections=v}
+          else if(e.key===DB.COLLECTION_CATS){collectionCats=v.map(c=>({...c,children:Array.isArray(c.children)?c.children:[]}))}
+          renderClothes();renderOutfits();renderInspire();renderHome();renderCollections();
+        }
       }catch(_){}
     }
   });
